@@ -3,10 +3,8 @@ This module contains functions to scrape the Html Play by Play for any given gam
 """
 
 import re
-
 import pandas as pd
 from bs4 import BeautifulSoup, SoupStrainer
-
 import hockey_scraper.utils.shared as shared
 
 
@@ -56,7 +54,8 @@ def get_pbp(game_id):
     return shared.get_file(page_info)
 
 
-def get_soup(game_html):
+
+def get_contents(game_html):
     """
     Uses Beautiful soup to parses the html document.
     Some parsers work for some pages but don't work for others....I'm not sure why so I just try them all here in order
@@ -65,19 +64,22 @@ def get_soup(game_html):
     
     :return: "soupified" html 
     """
+    parsers = ["lxml", "html.parser", "html5lib"]
     strainer = SoupStrainer('td', attrs={'class': re.compile(r'bborder')})
-    soup = BeautifulSoup(game_html, "lxml", parse_only=strainer)
-    soup = soup.find_all("td", {"class": re.compile('.*bborder.*')})
 
-    if len(soup) == 0:
-        soup = BeautifulSoup(game_html, "html.parser", parse_only=strainer)
-        soup = soup.select('td.+.bborder')
+    for parser in parsers:
+        # parse_only only works with lxml for some reason
+        if parser == "lxml":
+            soup = BeautifulSoup(game_html, parser, parse_only=strainer)
+        else:
+            soup = BeautifulSoup(game_html, parser)
 
-        if len(soup) == 0:
-            soup = BeautifulSoup(game_html, "html5lib")
-            soup = soup.select('td.+.bborder')
+        tds = soup.find_all("td", {"class": re.compile('.*bborder.*')})
 
-    return soup
+        if len(tds) > 0:
+            break
+
+    return tds
 
 
 def strip_html_pbp(td):
@@ -88,7 +90,6 @@ def strip_html_pbp(td):
     
     :return: list of plays (which contain a list of info) stripped of html
     """
-
     for y in range(len(td)):
         # Get the 'br' tag for the time column...this get's us time remaining instead of elapsed and remaining combined
         if y == 3:
@@ -132,7 +133,7 @@ def clean_html_pbp(html):
     
     :return: a list with all the info
     """
-    soup = get_soup(html)
+    soup = get_contents(html)
 
     # Create a list of lists (each length 8)...corresponds to 8 columns in html pbp
     td = [soup[i:i + 8] for i in range(0, len(soup), 8)]
@@ -148,7 +149,7 @@ def add_home_zone(event_dict, home_team):
     
     Keep in mind that the 'ev_zone' recorded is the zone relative to the event team. And for blocks the NHL counts
     the ev_team as the blocking team (I like counting the shooting team for blocks). Therefore, when it's the home team
-    the zone only gets flipped when it's a block. For away teams it's the opposite. Think about it...
+    the zone only gets flipped when it's a block. For away teams it's the opposite.
     
     :param event_dict: dict of event info
     :param home_team: home team
@@ -190,10 +191,8 @@ def add_zone(event_dict, play_description):
     zone = [x for x in s if 'Zone' in x]  # Find if list contains which zone
 
     if not zone:
-        event_dict['Ev_Zone'] = ''
-        return
-
-    if zone[0].find("Off") != -1:
+        event_dict['Ev_Zone'] = None
+    elif zone[0].find("Off") != -1:
         event_dict['Ev_Zone'] = 'Off'
     elif zone[0].find("Neu") != -1:
         event_dict['Ev_Zone'] = 'Neu'
@@ -284,7 +283,7 @@ def add_time(event_dict, event):
     if event[3] != '':
         event_dict['Seconds_Elapsed'] = shared.convert_to_seconds(event[3])
     else:
-        event_dict['Seconds_Elapsed'] = ''
+        event_dict['Seconds_Elapsed'] = 0.0
 
 
 def add_score(event_dict, event, current_score, home_team):
@@ -352,7 +351,7 @@ def get_penalty(play_description, players, home_team):
 def get_player_name(number, players, team, home_team):
     """
     This function is used for the description field in the html. Given a last name and a number it return the player's 
-    full name and id.
+    full name and id. Done by searching in players for the team until we find him (then just break)
     
     :param number: player's number
     :param players: all players with info
@@ -361,17 +360,27 @@ def get_player_name(number, players, team, home_team):
     
     :return: dict with full and and id
     """
+    player = None
     venue = "Home" if team == home_team else "Away"
 
-    # Get the info when we get the same number for that team
-    player = [{'name': name, 'id': players[venue][name]['id'], 'last_name': players[venue][name]['last_name']}
-              for name in players[venue].keys() if players[venue][name]['number'] == number]
+    # # Get the info when we get the same number for that team
+    # player = [{'name': name, 'id': players[venue][name]['id'], 'last_name': players[venue][name]['last_name']}
+    #           for name in players[venue] if players[venue][name]['number'] == number]
+
+    for name in players[venue]:
+        if players[venue][name]['number'] == number:
+            player = {
+                'name': name, 
+                'id': players[venue][name]['id'], 
+                'last_name': players[venue][name]['last_name']
+            }
+            break
 
     # Control for when the name can't be found
     if not player:
-        player = [{'name': '', 'id': '', 'last_name': ''}]
+        player = {'name': None, 'id': None, 'last_name': None}
 
-    return player[0]
+    return player
 
 
 def if_valid_event(event):
@@ -423,6 +432,7 @@ def shot_type(play_description):
                 return ' '.join([p, 'shot'])
             else:
                 return p
+
     return ''
 
 
@@ -653,13 +663,17 @@ def add_event_players(event_dict, event, players, home_team):
         event_info = parse_penalty(description, players, home_team)
 
     # Transfer info over
-    for key in event_info.keys():
+    for key in event_info:
         event_dict[key] = event_info[key]
 
 
 def populate_players(event_dict, players, away_players, home_players):
     """
-    Populate away and home player info (and num skaters on each side)
+    Populate away and home player info (and num skaters on each side).
+
+    These include:
+        1. HomePlayer & AwayPlayers fields from 1-6 for name/id
+        2. Home & Away Goalie Fields for name/id
     
     :param event_dict: dict with event info
     :param players: all players in game and info
@@ -668,46 +682,35 @@ def populate_players(event_dict, players, away_players, home_players):
     
     :return: None
     """
-    for venue in ['home', 'away']:
+    for venue in ['Home', 'Away']:
         for j in range(6):
+            # Deal with the Home & Away Player Fields
             try:
-                if venue == "home":
-                    name = shared.fix_name(home_players[j][0].upper())
-                    foo = 'Home'
-                else:
-                    name = shared.fix_name(away_players[j][0].upper())
-                    foo = 'Away'
-
-                event_dict['{}Player{}'.format(venue, j + 1)] = name
-                event_dict['{}Player{}_id'.format(venue, j + 1)] = players[foo][name]['id']
+                ven_player = home_players[j] if venue == "Home" else away_players[j]
+                name = shared.fix_name(ven_player[0].upper())
+                event_dict['{}Player{}'.format(venue.lower(), j + 1)] = name
+                event_dict['{}Player{}_id'.format(venue.lower(), j + 1)] = players[venue][name]['id']
             except KeyError:
-                event_dict['{}Player{}_id'.format(venue, j + 1)] = 'NA'
+                event_dict['{}Player{}_id'.format(venue.lower(), j + 1)] = None
             except IndexError:
-                event_dict['{}Player{}'.format(venue, j + 1)] = ''
-                event_dict['{}Player{}_id'.format(venue, j + 1)] = ''
+                event_dict['{}Player{}'.format(venue.lower(), j + 1)] = None
+                event_dict['{}Player{}_id'.format(venue.lower(), j + 1)] = None
+                continue
 
-    # Did this because above method assumes the goalie is at end of player list
-    for x in away_players:
-        if x[2] == 'G':
-            event_dict['Away_Goalie'] = shared.fix_name(x[0].upper())
-            try:
-                event_dict['Away_Goalie_Id'] = players['Away'][event_dict['Away_Goalie']]['id']
-            except KeyError:
-                event_dict['Away_Goalie_Id'] = 'NA'
-        else:
-            event_dict['Away_Goalie'] = ''
-            event_dict['Away_Goalie_Id'] = ''
+            # If the player is a goalie we try filling that field
+            if ven_player[2] == "G":
+                try:
+                    event_dict['{}_Goalie'.format(venue)] = name
+                    event_dict['{}_Goalie_Id'.format(venue)] = players[venue][name]['id']
+                except KeyError:
+                    pass
 
-    for x in home_players:
-        if x[2] == 'G':
-            event_dict['Home_Goalie'] = shared.fix_name(x[0].upper())
-            try:
-                event_dict['Home_Goalie_Id'] = players['Home'][event_dict['Home_Goalie']]['id']
-            except KeyError:
-                event_dict['Home_Goalie_Id'] = 'NA'
-        else:
-            event_dict['Home_Goalie'] = ''
-            event_dict['Home_Goalie_Id'] = ''
+        # Control for when no goalies present
+        if '{}_Goalie'.format(venue) not in event_dict:
+            event_dict['{}_Goalie'.format(venue)] = None
+        if '{}_Goalie_Id'.format(venue) not in event_dict:
+            event_dict['{}_Goalie_Id'.format(venue)] = None
+
 
     event_dict['Away_Players'] = len(away_players)
     event_dict['Home_Players'] = len(home_players)
@@ -776,6 +779,7 @@ def parse_html(html, players, teams):
     # This is seen sometimes...it's a duplicate row
     df.drop(df[df.Time_Elapsed == '-16:0-'].index, inplace=True)
 
+    df['p1_ID'] = df['p1_ID'].astype("float64")
     df['Away_Team'] = teams['Away']
     df['Home_Team'] = teams['Home']
 
@@ -794,19 +798,23 @@ def scrape_pbp(game_html, game_id, players, teams):
     :return: DataFrame of game info or None if it fails
     """
     if not game_html:
-        shared.print_warning("Html pbp for game {} is either not there or can't be obtained".format(game_id))
+        shared.print_error("Html pbp for game {} is either not there or can't be obtained".format(game_id))
         return None
 
     cleaned_html = clean_html_pbp(game_html)
     if len(cleaned_html) == 0:
-        shared.print_warning("Html pbp contains no plays, this game can't be scraped")
+        shared.print_error("Html pbp contains no plays, this game can't be scraped")
         return None
 
     try:
         game_df = parse_html(cleaned_html, players, teams)
     except Exception as e:
-        shared.print_warning('Error parsing Html pbp for game {} {}'.format(game_id, e))
+        shared.print_error('Error parsing Html pbp for game {} {}'.format(game_id, e))
         return None
+
+    # These sometimes end up as objects
+    game_df.Period = game_df.Period.astype(int)
+    game_df.Seconds_Elapsed = game_df.Seconds_Elapsed.astype(float)
 
     return game_df
 
@@ -837,7 +845,5 @@ def scrape_game(game_id, players, teams):
     """
     game_html = get_pbp(game_id)
     return scrape_pbp(game_html, game_id, players, teams)
-
-
 
 

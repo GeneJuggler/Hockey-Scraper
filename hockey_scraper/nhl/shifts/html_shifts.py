@@ -3,10 +3,8 @@ This module contains functions to scrape the Html Toi Tables (or shifts) for any
 """
 
 import re
-
 import pandas as pd
 from bs4 import BeautifulSoup
-
 import hockey_scraper.utils.shared as shared
 
 
@@ -20,25 +18,22 @@ def get_shifts(game_id):
     :return: Shifts or None
     """
     game_id = str(game_id)
-    home_url = 'http://www.nhl.com/scores/htmlreports/{}{}/TH{}.HTM'.format(game_id[:4], int(game_id[:4])+1, game_id[4:])
-    away_url = 'http://www.nhl.com/scores/htmlreports/{}{}/TV{}.HTM'.format(game_id[:4], int(game_id[:4])+1, game_id[4:])
+    venue_pgs = tuple()
 
-    page_info = {
-        "url": home_url,
-        "name": game_id,
-        "type": "html_shifts_home",
-        "season": game_id[:4],
-    }
+    for venue in ["home", "away"]:
+        venue_tag = "H" if venue == "home" else "V"
+        venue_url = 'http://www.nhl.com/scores/htmlreports/{}{}/T{}{}.HTM'.format(game_id[:4], int(game_id[:4])+1, venue_tag, game_id[4:])
+  
+        page_info = {
+            "url": venue_url,
+            "name": game_id,
+            "type": "html_shifts_{}".format(venue),
+            "season": game_id[:4],
+        }
 
-    # Get info for home shifts
-    home = shared.get_file(page_info)
+        venue_pgs += (shared.get_file(page_info), )
 
-    # Change info for scraping away page and scrape it
-    page_info["type"] = "html_shifts_away"
-    page_info["url"] = away_url
-    away = shared.get_file(page_info)
-
-    return home, away
+    return venue_pgs
 
 
 def get_soup(shifts_html):
@@ -50,16 +45,14 @@ def get_soup(shifts_html):
     
     :return: "soupified" html and player_shifts portion of html (it's a bunch of td tags)
     """
-    soup = BeautifulSoup(shifts_html, "lxml")
-    td = soup.findAll(True, {'class': ['playerHeading + border', 'lborder + bborder']})
+    parsers = ["lxml", "html.parser", "html5lib"]
 
-    if len(td) == 0:
-        soup = BeautifulSoup(shifts_html, "html.parser")
+    for parser in parsers:
+        soup = BeautifulSoup(shifts_html, parser)
         td = soup.findAll(True, {'class': ['playerHeading + border', 'lborder + bborder']})
 
-        if len(td) == 0:
-            soup = BeautifulSoup(shifts_html, "html5lib")
-            td = soup.findAll(True, {'class': ['playerHeading + border', 'lborder + bborder']})
+        if len(td) > 0:
+            break
 
     return td, get_teams(soup)
 
@@ -98,8 +91,6 @@ def analyze_shifts(shift, name, team, home_team, player_ids):
     """
     shifts = dict()
 
-    regex = re.compile('\d+')  # Used to check if something contains a number
-
     shifts['Player'] = name.upper()
     shifts['Period'] = '4' if shift[1] == 'OT' else shift[1]
     shifts['Team'] = shared.get_team(team.strip(' '))
@@ -107,7 +98,7 @@ def analyze_shifts(shift, name, team, home_team, player_ids):
     shifts['Duration'] = shared.convert_to_seconds(shift[4].split('/')[0])
 
     # I've had problems with this one...if there are no digits the time is fucked up
-    if regex.findall(shift[3].split('/')[0]):
+    if re.compile('\d+').findall(shift[3].split('/')[0]):
         shifts['End'] = shared.convert_to_seconds(shift[3].split('/')[0])
     else:
         shifts['End'] = shifts['Start'] + shifts['Duration']
@@ -118,7 +109,7 @@ def analyze_shifts(shift, name, team, home_team, player_ids):
         else:
             shifts['Player_Id'] = player_ids['Away'][name.upper()]['id']
     except KeyError:
-        shifts['Player_Id'] = ''
+        shifts['Player_Id'] = None
 
     return shifts
 
@@ -187,21 +178,19 @@ def scrape_game(game_id, players):
     home_html, away_html = get_shifts(game_id)
 
     if home_html is None or away_html is None:
-        shared.print_warning("Html shifts for game {} is either not there or can't be obtained".format(game_id))
-        return None
+        shared.print_error("Html shifts for game {} is either not there or can't be obtained".format(game_id))
+        return pd.DataFrame()
 
     try:
         away_df = parse_html(away_html, players, game_id)
         home_df = parse_html(home_html, players, game_id)
     except Exception as e:
-        shared.print_warning('Error parsing Html shifts for game {} {}'.format(game_id, e))
-        return None
+        shared.print_error('Error parsing Html shifts for game {} {}'.format(game_id, e))
+        return pd.DataFrame()
 
     # Combine the two
     game_df = pd.concat([away_df, home_df], ignore_index=True)
     game_df = pd.DataFrame(game_df, columns=columns)
-
     game_df = game_df.sort_values(by=['Period', 'Start'], ascending=[True, True])
-    game_df = game_df.reset_index(drop=True)
 
-    return game_df
+    return game_df.reset_index(drop=True)

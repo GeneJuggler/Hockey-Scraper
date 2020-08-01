@@ -6,7 +6,7 @@
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     
-    <title>Hockey-Scraper &#8212; hockey_scraper 1.3.1 documentation</title>
+    <title>Hockey-Scraper &#8212; hockey_scraper 1.36 documentation</title>
     
     <link rel="stylesheet" href="_static/nature.css" type="text/css" />
     <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
@@ -14,7 +14,7 @@
     <script type="text/javascript">
       var DOCUMENTATION_OPTIONS = {
         URL_ROOT:    './',
-        VERSION:     '1.3.1',
+        VERSION:     '1.36',
         COLLAPSE_INDEX: false,
         FILE_SUFFIX: '.html',
         HAS_SOURCE:  true,
@@ -41,7 +41,7 @@
         <li class="right" >
           <a href="nhl_scrape_functions.html" title="NHL Scraping Functions"
              accesskey="N">next</a> |</li>
-        <li class="nav-item nav-item-0"><a href="#">hockey_scraper 1.3.1 documentation</a> &#187;</li> 
+        <li class="nav-item nav-item-0"><a href="#">hockey_scraper 1.36 documentation</a> &#187;</li> 
       </ul>
     </div>  
 
@@ -57,18 +57,24 @@
 <div class="toctree-wrapper compound">
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="nhl_scrape_functions.html">NHL Scraping Functions</a></li>
-<li class="toctree-l1"><a class="reference internal" href="nwhl_scrape_functions.html">NWHL Scraping Functions</a></li>
 <li class="toctree-l1"><a class="reference internal" href="live_scrape.html">Live Scraping</a></li>
 <li class="toctree-l1"><a class="reference internal" href="license_link.html">License</a></li>
 </ul>
 </div>
+<dl class="docutils">
+<dt><strong>Notes:</strong></dt>
+<dd><ul class="first last simple">
+<li>Coordinates are only scraped from ESPN for versions 1.33+</li>
+<li>NWHL usage has been deprecated due to the removal of the pbp information for each game.</li>
+</ul>
+</dd>
+</dl>
 </div>
 <div class="section" id="purpose">
 <h2>Purpose<a class="headerlink" href="#purpose" title="Permalink to this headline">¶</a></h2>
-<p>This package is designed to allow people to scrape both NHL and NWHL data. For the NHL, one can scrape the Play by Play
+<p>This package is designed to allow people to scrape both NHL data. One can scrape the Play by Play
 and Shift data off of the National Hockey League (NHL) API and website for all preseason, regular season, and playoff
-games since the 2007-2008 season. For the NWHL, one is able to scrape the Play by Play data off of their API and website
-for all preseason, regular season, and playoff games since the 2015-2016 season.</p>
+games since the 2007-2008 season.</p>
 </div>
 <div class="section" id="prerequisites">
 <h2>Prerequisites<a class="headerlink" href="#prerequisites" title="Permalink to this headline">¶</a></h2>
@@ -150,6 +156,17 @@ stored (it must exist beforehand).</p>
 </pre></div>
 </div>
 </div>
+<div class="section" id="schedule">
+<h3>Schedule<a class="headerlink" href="#schedule" title="Permalink to this headline">¶</a></h3>
+<p>The schedule for any past or future games can be scraped as follows:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">hockey_scraper</span>
+
+<span class="c1"># As oppossed to the other calls the default format is &#39;Pandas&#39; which returns a DataFrame</span>
+<span class="n">sched_df</span> <span class="o">=</span> <span class="n">hockey_scraper</span><span class="o">.</span><span class="n">scrape_schedule</span><span class="p">(</span><span class="s2">&quot;2019-10-01&quot;</span><span class="p">,</span> <span class="s2">&quot;2020-07-01&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>The columns returned are: [&#8216;game_id&#8217;, &#8216;date&#8217;, &#8216;venue&#8217;, &#8216;home_team&#8217;, &#8216;away_team&#8217;, &#8216;start_time&#8217;, &#8216;home_score&#8217;, &#8216;away_score&#8217;, &#8216;status&#8217;]</p>
+</div>
 <div class="section" id="live-scraping">
 <h3>Live Scraping<a class="headerlink" href="#live-scraping" title="Permalink to this headline">¶</a></h3>
 <p>Here is a simple example of a way to setup live scraping. I strongly suggest checking out
@@ -171,16 +188,12 @@ stored (it must exist beforehand).</p>
     <span class="c1"># 2. Not in Intermission</span>
     <span class="c1"># 3. Not Over</span>
     <span class="k">if</span> <span class="n">game</span><span class="o">.</span><span class="n">is_ongoing</span><span class="p">():</span>
-        <span class="c1"># Get both DataFrames</span>
-        <span class="n">pbp_df</span> <span class="o">=</span> <span class="n">game</span><span class="o">.</span><span class="n">get_pbp</span><span class="p">()</span>
-        <span class="n">shifts_df</span> <span class="o">=</span> <span class="n">game</span><span class="o">.</span><span class="n">get_shifts</span><span class="p">()</span>
-
         <span class="c1"># Print the description of the last event</span>
-        <span class="nb">print</span><span class="p">(</span><span class="n">game</span><span class="o">.</span><span class="n">game_id</span><span class="p">,</span> <span class="s2">&quot;-&gt;&quot;</span><span class="p">,</span> <span class="n">pbp_df</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="s1">&#39;Description&#39;</span><span class="p">])</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">game</span><span class="o">.</span><span class="n">game_id</span><span class="p">,</span> <span class="s2">&quot;-&gt;&quot;</span><span class="p">,</span> <span class="n">game</span><span class="o">.</span><span class="n">pbp_df</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="s1">&#39;Description&#39;</span><span class="p">])</span>
 
         <span class="c1"># Store in CSV files</span>
-        <span class="n">pbp_df</span><span class="o">.</span><span class="n">to_csv</span><span class="p">(</span><span class="n">f</span><span class="s2">&quot;../hockey_scraper_data/</span><span class="si">{game.game_id}</span><span class="s2">_pbp.csv&quot;</span><span class="p">,</span> <span class="n">sep</span><span class="o">=</span><span class="s1">&#39;,&#39;</span><span class="p">)</span>
-        <span class="n">shifts_df</span><span class="o">.</span><span class="n">to_csv</span><span class="p">(</span><span class="n">f</span><span class="s2">&quot;../hockey_scraper_data/</span><span class="si">{game.game_id}</span><span class="s2">_shifts.csv&quot;</span><span class="p">,</span> <span class="n">sep</span><span class="o">=</span><span class="s1">&#39;,&#39;</span><span class="p">)</span>
+        <span class="n">game</span><span class="o">.</span><span class="n">pbp_df</span><span class="o">.</span><span class="n">to_csv</span><span class="p">(</span><span class="n">f</span><span class="s2">&quot;../hockey_scraper_data/</span><span class="si">{game.game_id}</span><span class="s2">_pbp.csv&quot;</span><span class="p">,</span> <span class="n">sep</span><span class="o">=</span><span class="s1">&#39;,&#39;</span><span class="p">)</span>
+        <span class="n">game</span><span class="o">.</span><span class="n">shifts_df</span><span class="o">.</span><span class="n">to_csv</span><span class="p">(</span><span class="n">f</span><span class="s2">&quot;../hockey_scraper_data/</span><span class="si">{game.game_id}</span><span class="s2">_shifts.csv&quot;</span><span class="p">,</span> <span class="n">sep</span><span class="o">=</span><span class="s1">&#39;,&#39;</span><span class="p">)</span>
 
 <span class="k">if</span> <span class="n">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
     <span class="c1"># B4 we start set the directory to store the files</span>
@@ -201,36 +214,8 @@ stored (it must exist beforehand).</p>
             <span class="n">to_csv</span><span class="p">(</span><span class="n">game</span><span class="p">)</span>
 </pre></div>
 </div>
-</div>
-</div>
-<div class="section" id="nwhl-usage">
-<h2>NWHL Usage<a class="headerlink" href="#nwhl-usage" title="Permalink to this headline">¶</a></h2>
-<p>Scrape data on a season by season level:</p>
-<div class="highlight-default"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">hockey_scraper</span>
-
-<span class="c1"># Scrapes the 2015 &amp; 2016 season and stores the data in a Csv file</span>
-<span class="n">hockey_scraper</span><span class="o">.</span><span class="n">nwhl</span><span class="o">.</span><span class="n">scrape_seasons</span><span class="p">([</span><span class="mi">2015</span><span class="p">,</span> <span class="mi">2016</span><span class="p">])</span>
-
-<span class="c1"># Scrapes the 2008 season and returns a Pandas DataFrame containing the pbp</span>
-<span class="n">scraped_data</span> <span class="o">=</span> <span class="n">hockey_scraper</span><span class="o">.</span><span class="n">nwhl</span><span class="o">.</span><span class="n">scrape_seasons</span><span class="p">([</span><span class="mi">2017</span><span class="p">],</span> <span class="n">data_format</span><span class="o">=</span><span class="s1">&#39;Pandas&#39;</span><span class="p">)</span>
-</pre></div>
-</div>
-<p>Scrape a list of games:</p>
-<div class="highlight-default"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">hockey_scraper</span>
-
-<span class="c1"># Scrape some games and store the results in a Csv file</span>
-<span class="c1"># Also saves the scraped pages</span>
-<span class="n">hockey_scraper</span><span class="o">.</span><span class="n">nwhl</span><span class="o">.</span><span class="n">scrape_games</span><span class="p">([</span><span class="mi">14694271</span><span class="p">,</span> <span class="mi">14814946</span><span class="p">,</span> <span class="mi">14689491</span><span class="p">],</span> <span class="n">docs_dir</span><span class="o">=</span><span class="s2">&quot;...Path you specified&quot;</span><span class="p">)</span>
-</pre></div>
-</div>
-<p>Scrape all games in a given date range:</p>
-<div class="highlight-default"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">hockey_scraper</span>
-
-<span class="c1"># Scrapes all games between 2016-10-10 and 2017-01-01 and returns a Pandas DataFrame containing the pbp</span>
-<span class="n">hockey_scraper</span><span class="o">.</span><span class="n">nwhl</span><span class="o">.</span><span class="n">scrape_date_range</span><span class="p">(</span><span class="s1">&#39;2016-10-10&#39;</span><span class="p">,</span> <span class="s1">&#39;2017-01-01&#39;</span><span class="p">,</span> <span class="n">data_format</span><span class="o">=</span><span class="s1">&#39;pandas&#39;</span><span class="p">)</span>
-</pre></div>
-</div>
 <p>The full documentation can be found <a class="reference external" href="http://hockey-scraper.readthedocs.io/en/latest/">here</a>.</p>
+</div>
 </div>
 <div class="section" id="contact">
 <h2>Contact<a class="headerlink" href="#contact" title="Permalink to this headline">¶</a></h2>
@@ -262,10 +247,10 @@ Otherwise you can email me at <a class="reference external" href="mailto:Harrysh
 <li><a class="reference internal" href="#installation">Installation</a></li>
 <li><a class="reference internal" href="#nhl-usage">NHL Usage</a><ul>
 <li><a class="reference internal" href="#standard-scrape-functions">Standard Scrape Functions</a></li>
+<li><a class="reference internal" href="#schedule">Schedule</a></li>
 <li><a class="reference internal" href="#live-scraping">Live Scraping</a></li>
 </ul>
 </li>
-<li><a class="reference internal" href="#nwhl-usage">NWHL Usage</a></li>
 <li><a class="reference internal" href="#contact">Contact</a></li>
 <li><a class="reference internal" href="#indices-and-tables">Indices and tables</a></li>
 </ul>
@@ -308,11 +293,11 @@ Otherwise you can email me at <a class="reference external" href="mailto:Harrysh
         <li class="right" >
           <a href="nhl_scrape_functions.html" title="NHL Scraping Functions"
              >next</a> |</li>
-        <li class="nav-item nav-item-0"><a href="#">hockey_scraper 1.3.1 documentation</a> &#187;</li> 
+        <li class="nav-item nav-item-0"><a href="#">hockey_scraper 1.36 documentation</a> &#187;</li> 
       </ul>
     </div>
     <div class="footer" role="contentinfo">
-        &#169; Copyright 2018, Harry Shomer.
+        &#169; Copyright 2020, Harry Shomer.
       Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.5.1.
     </div>
   </body>

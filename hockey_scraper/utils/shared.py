@@ -7,20 +7,11 @@ This file is a bunch of the shared functions or just general stuff used by the d
 import os
 import time
 import warnings
-
 import requests
+import datetime
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
-
 from . import save_pages as sp
-
-
-# When we want to kill the current process
-class HaltException(Exception): pass
-
-# Own warning...gets rid of junk when printing
-def custom_formatwarning(msg, *args, **kwargs): return "Warning: " + str(msg) + '\n'
-warnings.formatwarning = custom_formatwarning
 
 # Directory where to save pages
 docs_dir = False
@@ -46,98 +37,100 @@ TEAMS = {
 # Fixes some of the mistakes made with player names
 # A majority of this is courtesy of Muneeb Alam (on twitter: @muneebalamcu)
 # Found here -> https://github.com/muneebalam/Hockey/blob/master/NHL/Core/GetPbP.py
-Names = {'n/a': 'n/a', 'ALEXANDER OVECHKIN': 'Alex Ovechkin', 'TOBY ENSTROM': 'Tobias Enstrom', 'JAMIE MCGINN': 'Jamie McGinn',
-         'CODY MCLEOD': 'Cody McLeod', 'MARC-EDOUARD VLASIC': 'Marc-Edouard Vlasic', 'RYAN MCDONAGH': 'Ryan McDonagh',
-         'CHRIS TANEV': 'Christopher Tanev', 'JARED MCCANN': 'Jared McCann', 'P.K. SUBBAN': 'PK Subban',
-         'DEVANTE SMITH-PELLY': 'Devante Smith-Pelly', 'MIKE MCKENNA': 'Mike McKenna', 'MICHAEL MCCARRON': 'Michael McCarron',
-         'T.J. BRENNAN': 'TJ Brennan', 'BRAYDEN MCNABB': 'Brayden McNabb', 'PIERRE-ALEXANDRE PARENTEAU': 'PA Parenteau',
-         'JAMES VAN RIEMSDYK': 'James van Riemsdyk', 'OLIVER EKMAN-LARSSON': 'Oliver Ekman-Larsson', 'TJ OSHIE': 'TJ Oshie',
-         'J P DUMONT': 'JP Dumont', 'J.T. MILLER': 'JT Miller', 'R.J UMBERGER': 'RJ Umberger', 'PA PARENTEAU': 'PA Parenteau',
-         'PER-JOHAN AXELSSON': 'P.J. Axelsson', 'MAXIME TALBOT': 'Max Talbot', 'JOHN-MICHAEL LILES': 'John-Michael Liles',
-         'DANIEL GIRARDI': 'Dan Girardi', 'DANIEL CLEARY': 'Dan Cleary', 'NIKLAS KRONVALL': 'Niklas Kronwall',
-         'SIARHEI KASTSITSYN': 'Sergei Kostitsyn', 'ANDREI KASTSITSYN': 'Andrei Kostitsyn', 'ALEXEI KOVALEV': 'Alex Kovalev',
-         'DAVID JOHNNY ODUYA': 'Johnny Oduya', 'EDWARD PURCELL': 'Teddy Purcell', 'NICKLAS GROSSMAN': 'Nicklas Grossmann',
-         'PERNELL KARL SUBBAN': 'PK Subban', 'VOJTEK VOLSKI': 'Wojtek Wolski', 'VYACHESLAV VOYNOV': 'Slava Voynov',
-         'FREDDY MODIN': 'Fredrik Modin', 'VACLAV PROSPAL': 'Vinny Prospal', 'KRISTOPHER LETANG': 'Kris Letang',
-         'PIERRE ALEXANDRE PARENTEAU': 'PA Parenteau', 'T.J. OSHIE': 'TJ Oshie', 'JOHN HILLEN III': 'Jack Hillen',
-         'BRANDON CROMBEEN': 'B.J. Crombeen', 'JEAN-PIERRE DUMONT': 'JP Dumont', 'RYAN NUGENT-HOPKINS': 'Ryan Nugent-Hopkins',
-         'CONNOR MCDAVID': 'Connor McDavid', 'TREVOR VAN RIEMSDYK': 'Trevor van Riemsdyk', 'CALVIN DE HAAN': 'Calvin de Haan',
-         'GREG MCKEGG': 'Greg McKegg', 'NATHAN MACKINNON': 'Nathan MacKinnon', 'KYLE MCLAREN': 'Kyle McLaren',
-         'ADAM MCQUAID': 'Adam McQuaid', 'DYLAN MCILRATH': 'Dylan McIlrath', 'DANNY DEKEYSER': 'Danny DeKeyser',
-         'JAKE MCCABE': 'Jake McCabe', 'JAMIE MCBAIN': 'Jamie McBain', 'PIERRE-MARC BOUCHARD': 'Pierre-Marc Bouchard',
-         'JEAN-FRANCOIS JACQUES': 'JF Jacques', 'OLE-KRISTIAN TOLLEFSEN': 'Ole-Kristian Tollefsen',
-         'MARC-ANDRE BERGERON': 'Marc-Andre Bergeron', 'MARC-ANTOINE POULIOT': 'Marc-Antoine Pouliot',
-         'MARC-ANDRE GRAGNANI': 'Marc-Andre Gragnani', 'JORDAN LAVALLEE-SMOTHERMAN': 'Jordan Lavallee-Smotherman',
-         'PIERRE-LUC LETOURNEAU-LEBLOND': 'Pierre Leblond', 'J-F JACQUES': 'JF Jacques', 'JP DUMONT': 'JP Dumont',
-         'MARC-ANDRE CLICHE': 'Marc-Andre Cliche', 'J-P DUMONT': 'JP Dumont', 'JOSHUA BAILEY': 'Josh Bailey',
-         'OLIVIER MAGNAN-GRENIER': 'Olivier Magnan-Grenier', u'FRÉDÉRIC ST-DENIS': 'Frederic St-Denis',
-         'MARC-ANDRE BOURDON': 'Marc-Andre Bourdon', 'PIERRE-CEDRIC LABRIE': 'Pierre-Cedric Labrie',
-         'JONATHAN AUDY-MARCHESSAULT': 'Jonathan Marchessault', 'JEAN-GABRIEL PAGEAU': 'Jean-Gabriel Pageau',
-         'JEAN-PHILIPPE COTE': 'Jean-Philippe Cote', 'PIERRE-EDOUARD BELLEMARE': 'Pierre-Edouard Bellemare',
-         'COLIN (JOHN) WHITE': 'Colin White', 'BATES (JON) BATTAGLIA': 'Bates Battaglia', 'MATHEW DUBMA': 'Matt Dumba',
-         'NIKOLAI ANTROPOV': 'Nik Antropov', 'KRYS BARCH': 'Krystofer Barch', 'CAMERON BARKER': 'Cam Barker',
-         'NICKLAS BERGFORS': 'Niclas Bergfors', 'ROBERT BLAKE': 'Rob Blake', 'MICHAEL BLUNDEN': 'Mike Blunden',
-         'CHRISTOPHER BOURQUE': 'Chris Bourque', 'MICHÃ«L BOURNIVAL': 'Michael Bournival', 'NICHOLAS BOYNTON': 'Nick Boynton',
-         'TJ BRENNAN': 'TJ Brennan', 'DANIEL BRIERE': 'Danny Briere', 'TJ BRODIE': 'TJ Brodie', 'J.T. BROWN': 'JT Brown',
-         'ALEXANDRE BURROWS': 'Alex Burrows', 'MICHAEL CAMMALLERI': 'Mike Cammalleri', 'DANIEL CARCILLO': 'Dan Carcillo',
-         'MATTHEW CARLE': 'Matt Carle', 'DANNY CLEARY': 'Dan Cleary', 'JOSEPH CORVO': 'Joe Corvo', 'JOSEPH CRABB': 'Joey Crabb',
-         'BJ CROMBEEN': 'B.J. Crombeen',  'EVGENII DADONOV': 'Evgeny Dadonov', 'CHRIS VANDE VELDE': 'Chris VandeVelde',
-         'JACOB DE LA ROSE': 'Jacob de la Rose', 'JOE DIPENTA': 'Joe DiPenta', 'JON DISALVATORE': 'Jon DiSalvatore',
-         'JACOB DOWELL': 'Jake Dowell', 'NICHOLAS DRAZENOVIC': 'Nick Drazenovic', 'ROBERT EARL': 'Robbie Earl',
-         'ALEXANDER FROLOV': 'Alex Frolov', 'T.J. GALIARDI': 'TJ Galiardi', 'TJ GALIARDI': 'TJ Galiardi',
-         'ANDREW GREENE': 'Andy Greene', 'MICHAEL GRIER': 'Mike Grier', 'NATHAN GUENIN': 'Nate Guenin',
-         'MARTY HAVLAT': 'Martin Havlat', 'JOSHUA HENNESSY': 'Josh Hennessy', 'T.J. HENSICK': 'TJ Hensick',
-         'TJ Hensick': 'TJ Hensick', 'CHRISTOPHER HIGGINS': 'Chris Higgins', 'ROBERT HOLIK': 'Bobby Holik',
-         'MATTHEW IRWIN': 'Matt Irwin', 'P. J. AXELSSON': 'P.J. Axelsson', 'PER JOHAN AXELSSON': 'P.J. Axelsson',
-         'JONATHON KALINSKI': 'Jon Kalinski', 'ALEXANDER KHOKHLACHEV': 'Alex Khokhlachev', 'DJ KING': 'DJ King',
-         'DWAYNE KING': 'DJ King', 'MICHAEL KNUBLE': 'Mike Knuble', 'KRYSTOFER KOLANOS': 'Krys Kolanos',
-         'MICHAEL KOMISAREK': 'Mike Komisarek', 'STAFFAN KRONVALL': 'Staffan Kronwall', 'NIKOLAY KULEMIN': 'Nikolai Kulemin',
-         'CLARKE MACARTHUR': 'Clarke MacArthur', 'LANE MACDERMID': 'Lane MacDermid', 'ANDREW MACDONALD': 'Andrew MacDonald',
-         'RAYMOND MACIAS': 'Ray Macias', 'CRAIG MACDONALD': 'Craig MacDonald', 'STEVE MACINTYRE': 'Steve MacIntyre',
-         'MAKSIM MAYOROV': 'Maxim Mayorov', 'AARON MACKENZIE': 'Aaron MacKenzie', 'DEREK MACKENZIE': 'Derek MacKenzie',
-         'RODNEY PELLEY': 'Rod Pelley', 'BRETT MACLEAN': 'Brett MacLean', 'ANDREW MACWILLIAM': 'Andrew MacWilliam',
-         'BRYAN MCCABE': 'Bryan McCabe', 'OLIVIER MAGNAN': 'Olivier Magnan-Grenier', 'DEAN MCAMMOND': 'Dean McAmmond',
-         'KENNDAL MCARDLE': 'Kenndal McArdle', 'ANDY MCDONALD': 'Andy McDonald', 'COLIN MCDONALD': 'Colin McDonald',
-         'JOHN MCCARTHY': 'John McCarthy', 'STEVE MCCARTHY': 'Steve McCarthy', 'DARREN MCCARTY': 'Darren McCarty',
-         'JAY MCCLEMENT': 'Jay McClement', 'CODY MCCORMICK': 'Cody McCormick', 'MAX MCCORMICK': 'Max McCormick',
-         'BROCK MCGINN': 'Brock McGinn', 'TYE MCGINN': 'Tye McGinn', 'BRIAN MCGRATTAN': 'Brian McGrattan',
-         'DAVID MCINTYRE': 'David McIntyre', 'NATHAN MCIVER': 'Nathan McIver', 'JAY MCKEE': 'Jay McKee',
-         'CURTIS MCKENZIE': 'Curtis McKenzie', 'FRAZER MCLAREN': 'Frazer McLaren', 'BRETT MCLEAN': 'Brett McLean',
-         'BRANDON MCMILLAN': 'Brandon McMillan', 'CARSON MCMILLAN': 'Carson McMillan', 'PHILIP MCRAE':
-         'Philip McRae', 'FREDERICK MEYER IV': 'Freddy Meyer', 'MICHAEL MODANO': 'Mike Modano',
-         'CHRISTOPHER NEIL': 'Chris Neil', 'MATTHEW NIETO': 'Matt Nieto', 'JOHN ODUYA': 'Johnny Oduya',
-         'PIERRE PARENTEAU': 'PA Parenteau', 'MARC POULIOT': 'Marc-Antoine Pouliot', 'MAXWELL REINHART': 'Max Reinhart',
-         'MICHAEL RUPP': 'Mike Rupp', 'ROBERT SCUDERI': 'Rob Scuderi', 'TOMMY SESTITO': 'Tom Sestito',
-         'MICHAEL SILLINGER': 'Mike Sillinger', 'JONATHAN SIM': 'Jon Sim', 'MARTIN ST LOUIS': 'Martin St. Louis',
-         'MATTHEW STAJAN': 'Matt Stajan', 'ZACHERY STORTINI': 'Zack Stortini', 'PK SUBBAN': 'PK Subban',
-         'WILLIAM THOMAS': 'Bill Thomas', 'R.J. UMBERGER': 'RJ Umberger', 'RJ UMBERGER': 'RJ Umberger',
-         'MARK VAN GUILDER': 'Mark van Guilder', 'BRYCE VAN BRABANT': 'Bryce van Brabant',
-         'DAVID VAN DER GULIK': 'David van der Gulik', 'MIKE VAN RYN': 'Mike van Ryn', 'ANDREW WOZNIEWSKI': 'Andy Wozniewski',
-         'JAMES WYMAN': 'JT Wyman', 'JT WYMAN': 'JT Wyman', 'NIKOLAY ZHERDEV': 'Nikolai Zherdev',
-         'HARRISON ZOLNIERCZYK': 'Harry Zolnierczyk', 'MARTIN ST PIERRE': 'Martin St. Pierre', 'B.J CROMBEEN': 'B.J. Crombeen',
-         'DENIS GAUTHIER JR.': 'DENIS GAUTHIER', 'DENIS JR. GAUTHIER': 'DENIS GAUTHIER', 'MARC-ANDRE FLEURY': 'Marc-Andre Fleury',
-         'DAN LACOUTURE': 'Dan LaCouture', 'RICK DIPIETRO': 'Rick DiPietro', 'JOEY MACDONALD': 'Joey MacDonald',
-         'TIMOTHY JR. THOMAS': 'Tim Thomas', 'ILJA BRYZGALOV': 'Ilya Bryzgalov', 'MATHEW DUMBA': 'Matt Dumba',
-         'MICHAËL BOURNIVAL': 'Michael Bournival', 'MATTHEW BENNING': 'Matt Benning', 'ZACHARY SANFORD': 'Zach Sanford',
-         'AJ GREER': 'A.J. Greer', 'JT COMPHER': 'J.T. Compher', 'NICOLAS PETAN': 'Nic Petan',
-         'VINCENT HINOSTROZA': 'Vinnie Hinostroza', 'PHILIP VARONE': 'Phil Varone', 'JOSHUA MORRISSEY': 'Josh Morrissey',
-         'Mathew Bodie': 'Mat Bodie', 'MICHAEL FERLAND': 'Micheal Ferland', 'MICHAEL SANTORELLI' :'Mike Santorelli',
-         'CHRISTOPHER BREEN': 'Chris Breen', 'BRYCE VAN BRABRANT': 'Bryce Van Brabant', 'ALEXANDER KILLORN': 'Alex Killorn',
-         'JOSEPH MORROW': 'Joe Morrow', 'ALEX STEEN': 'Alexander Steen', 'BRADLEY MILLS': 'Brad Mills',
-         'MICHAEL SISLO': 'Mike Sislo', 'MICHAEL VERNACE': 'Mike Vernace', 'STEVEN REINPRECHT': 'Steve Reinprecht',
-         'MATTHEW MURRAY': 'Matt Murray', 'THOMAS MCCOLLUM': 'TOM MCCOLLUM', 'MICHAEL MATHESON': 'MIKE MATHESON',
-         'BOO NIEVES': 'CRISTOVAL NIEVES', 'J.F. BERUBE': 'JEAN-FRANCOIS BERUBE', 'TONY DEANGELO': 'ANTHONY DEANGELO',
-         'JEFFREY HAMILTON': 'JEFF HAMILTON', 'JAMES VANDERMEER': 'JIM VANDERMEER', 'MICHAEL YORK': 'MIKE YORK',
-         'EMMANUEL LEGACE': 'MANNY LEGACE', 'JAMES DOWD': 'JIM DOWD', 'ANDREW MILLER': 'DREW MILLER',
-         'JOHN PEVERLEY': 'RICH PEVERLEY', 'ILJA ZUBOV': 'ILYA ZUBOV', 'CHRISTOPHER MINARD': 'CHRIS MINARD',
-         'BENJAMIN ONDRUS': 'BEN ONDRUS', 'ZACH FITZGERALD': 'ZACK FITZGERALD', 'STEPHEN VALIQUETTE': 'STEVE VALIQUETTE',
-         'OLAF KOLZIG': 'OLIE KOLZIG', 'J-SEBASTIEN AUBIN': 'JEAN-SEBASTIEN AUBIN', 'ALEXANDER AULD': 'ALEX AULD',
-         'JAMES HOWARD': 'JIMMY HOWARD', 'JEFF DROUIN-DESLAURIERS': 'JEFF DESLAURIERS', 'SIMEON VARLAMOV': 'SEMYON VARLAMOV',
-         'ALEXANDER PECHURSKI': 'Alexander Pechurskiy', 'JEFFREY PENNER': 'JEFF PENNER', 'EMMANUEL FERNANDEZ': 'Manny FERNANDEZ',
-         'ALEXANDER PETROVIC': 'ALEX PETROVIC', 'ZACHARY ASTON-REESE': 'ZACH ASTON-REESE', 'J-F BERUBE': 'JEAN-FRANCOIS BERUBE',
-         "DANNY O'REGAN": "DANIEL O'REGAN", "PATRICK MAROON": "PAT MAROON", "LEE  STEMPNIAK": "LEE STEMPNIAK",
-         "JAMES REIMER ,": "JAMES REIMER", "CALVIN PETERSEN ,": "CALVIN PETERSEN", "CAL PETERSEN": "CALVIN PETERSEN"
-         }
+Names = {
+    'n/a': 'n/a', 'ALEXANDER OVECHKIN': 'Alex Ovechkin', 'TOBY ENSTROM': 'Tobias Enstrom', 'JAMIE MCGINN': 'Jamie McGinn',
+    'CODY MCLEOD': 'Cody McLeod', 'MARC-EDOUARD VLASIC': 'Marc-Edouard Vlasic', 'RYAN MCDONAGH': 'Ryan McDonagh',
+    'CHRIS TANEV': 'Christopher Tanev', 'JARED MCCANN': 'Jared McCann', 'P.K. SUBBAN': 'PK Subban',
+    'DEVANTE SMITH-PELLY': 'Devante Smith-Pelly', 'MIKE MCKENNA': 'Mike McKenna', 'MICHAEL MCCARRON': 'Michael McCarron',
+    'T.J. BRENNAN': 'TJ Brennan', 'BRAYDEN MCNABB': 'Brayden McNabb', 'PIERRE-ALEXANDRE PARENTEAU': 'PA Parenteau',
+    'JAMES VAN RIEMSDYK': 'James van Riemsdyk', 'OLIVER EKMAN-LARSSON': 'Oliver Ekman-Larsson', 'TJ OSHIE': 'TJ Oshie',
+    'J P DUMONT': 'JP Dumont', 'J.T. MILLER': 'JT Miller', 'R.J UMBERGER': 'RJ Umberger', 'PA PARENTEAU': 'PA Parenteau',
+    'PER-JOHAN AXELSSON': 'P.J. Axelsson', 'MAXIME TALBOT': 'Max Talbot', 'JOHN-MICHAEL LILES': 'John-Michael Liles',
+    'DANIEL GIRARDI': 'Dan Girardi', 'DANIEL CLEARY': 'Dan Cleary', 'NIKLAS KRONVALL': 'Niklas Kronwall',
+    'SIARHEI KASTSITSYN': 'Sergei Kostitsyn', 'ANDREI KASTSITSYN': 'Andrei Kostitsyn', 'ALEXEI KOVALEV': 'Alex Kovalev',
+    'DAVID JOHNNY ODUYA': 'Johnny Oduya', 'EDWARD PURCELL': 'Teddy Purcell', 'NICKLAS GROSSMAN': 'Nicklas Grossmann',
+    'PERNELL KARL SUBBAN': 'PK Subban', 'VOJTEK VOLSKI': 'Wojtek Wolski', 'VYACHESLAV VOYNOV': 'Slava Voynov',
+    'FREDDY MODIN': 'Fredrik Modin', 'VACLAV PROSPAL': 'Vinny Prospal', 'KRISTOPHER LETANG': 'Kris Letang',
+    'PIERRE ALEXANDRE PARENTEAU': 'PA Parenteau', 'T.J. OSHIE': 'TJ Oshie', 'JOHN HILLEN III': 'Jack Hillen',
+    'BRANDON CROMBEEN': 'B.J. Crombeen', 'JEAN-PIERRE DUMONT': 'JP Dumont', 'RYAN NUGENT-HOPKINS': 'Ryan Nugent-Hopkins',
+    'CONNOR MCDAVID': 'Connor McDavid', 'TREVOR VAN RIEMSDYK': 'Trevor van Riemsdyk', 'CALVIN DE HAAN': 'Calvin de Haan',
+    'GREG MCKEGG': 'Greg McKegg', 'NATHAN MACKINNON': 'Nathan MacKinnon', 'KYLE MCLAREN': 'Kyle McLaren',
+    'ADAM MCQUAID': 'Adam McQuaid', 'DYLAN MCILRATH': 'Dylan McIlrath', 'DANNY DEKEYSER': 'Danny DeKeyser',
+    'JAKE MCCABE': 'Jake McCabe', 'JAMIE MCBAIN': 'Jamie McBain', 'PIERRE-MARC BOUCHARD': 'Pierre-Marc Bouchard',
+    'JEAN-FRANCOIS JACQUES': 'JF Jacques', 'OLE-KRISTIAN TOLLEFSEN': 'Ole-Kristian Tollefsen',
+    'MARC-ANDRE BERGERON': 'Marc-Andre Bergeron', 'MARC-ANTOINE POULIOT': 'Marc-Antoine Pouliot',
+    'MARC-ANDRE GRAGNANI': 'Marc-Andre Gragnani', 'JORDAN LAVALLEE-SMOTHERMAN': 'Jordan Lavallee-Smotherman',
+    'PIERRE-LUC LETOURNEAU-LEBLOND': 'Pierre Leblond', 'J-F JACQUES': 'JF Jacques', 'JP DUMONT': 'JP Dumont',
+    'MARC-ANDRE CLICHE': 'Marc-Andre Cliche', 'J-P DUMONT': 'JP Dumont', 'JOSHUA BAILEY': 'Josh Bailey',
+    'OLIVIER MAGNAN-GRENIER': 'Olivier Magnan-Grenier', u'FRÉDÉRIC ST-DENIS': 'Frederic St-Denis',
+    'MARC-ANDRE BOURDON': 'Marc-Andre Bourdon', 'PIERRE-CEDRIC LABRIE': 'Pierre-Cedric Labrie',
+    'JONATHAN AUDY-MARCHESSAULT': 'Jonathan Marchessault', 'JEAN-GABRIEL PAGEAU': 'Jean-Gabriel Pageau',
+    'JEAN-PHILIPPE COTE': 'Jean-Philippe Cote', 'PIERRE-EDOUARD BELLEMARE': 'Pierre-Edouard Bellemare',
+    'COLIN (JOHN) WHITE': 'Colin White', 'BATES (JON) BATTAGLIA': 'Bates Battaglia', 'MATHEW DUBMA': 'Matt Dumba',
+    'NIKOLAI ANTROPOV': 'Nik Antropov', 'KRYS BARCH': 'Krystofer Barch', 'CAMERON BARKER': 'Cam Barker',
+    'NICKLAS BERGFORS': 'Niclas Bergfors', 'ROBERT BLAKE': 'Rob Blake', 'MICHAEL BLUNDEN': 'Mike Blunden',
+    'CHRISTOPHER BOURQUE': 'Chris Bourque', 'MICHÃ«L BOURNIVAL': 'Michael Bournival', 'NICHOLAS BOYNTON': 'Nick Boynton',
+    'TJ BRENNAN': 'TJ Brennan', 'DANIEL BRIERE': 'Danny Briere', 'TJ BRODIE': 'TJ Brodie', 'J.T. BROWN': 'JT Brown',
+    'ALEXANDRE BURROWS': 'Alex Burrows', 'MICHAEL CAMMALLERI': 'Mike Cammalleri', 'DANIEL CARCILLO': 'Dan Carcillo',
+    'MATTHEW CARLE': 'Matt Carle', 'DANNY CLEARY': 'Dan Cleary', 'JOSEPH CORVO': 'Joe Corvo', 'JOSEPH CRABB': 'Joey Crabb',
+    'BJ CROMBEEN': 'B.J. Crombeen',  'EVGENII DADONOV': 'Evgeny Dadonov', 'CHRIS VANDE VELDE': 'Chris VandeVelde',
+    'JACOB DE LA ROSE': 'Jacob de la Rose', 'JOE DIPENTA': 'Joe DiPenta', 'JON DISALVATORE': 'Jon DiSalvatore',
+    'JACOB DOWELL': 'Jake Dowell', 'NICHOLAS DRAZENOVIC': 'Nick Drazenovic', 'ROBERT EARL': 'Robbie Earl',
+    'ALEXANDER FROLOV': 'Alex Frolov', 'T.J. GALIARDI': 'TJ Galiardi', 'TJ GALIARDI': 'TJ Galiardi',
+    'ANDREW GREENE': 'Andy Greene', 'MICHAEL GRIER': 'Mike Grier', 'NATHAN GUENIN': 'Nate Guenin',
+    'MARTY HAVLAT': 'Martin Havlat', 'JOSHUA HENNESSY': 'Josh Hennessy', 'T.J. HENSICK': 'TJ Hensick',
+    'TJ Hensick': 'TJ Hensick', 'CHRISTOPHER HIGGINS': 'Chris Higgins', 'ROBERT HOLIK': 'Bobby Holik',
+    'MATTHEW IRWIN': 'Matt Irwin', 'P. J. AXELSSON': 'P.J. Axelsson', 'PER JOHAN AXELSSON': 'P.J. Axelsson',
+    'JONATHON KALINSKI': 'Jon Kalinski', 'ALEXANDER KHOKHLACHEV': 'Alex Khokhlachev', 'DJ KING': 'DJ King',
+    'DWAYNE KING': 'DJ King', 'MICHAEL KNUBLE': 'Mike Knuble', 'KRYSTOFER KOLANOS': 'Krys Kolanos',
+    'MICHAEL KOMISAREK': 'Mike Komisarek', 'STAFFAN KRONVALL': 'Staffan Kronwall', 'NIKOLAY KULEMIN': 'Nikolai Kulemin',
+    'CLARKE MACARTHUR': 'Clarke MacArthur', 'LANE MACDERMID': 'Lane MacDermid', 'ANDREW MACDONALD': 'Andrew MacDonald',
+    'RAYMOND MACIAS': 'Ray Macias', 'CRAIG MACDONALD': 'Craig MacDonald', 'STEVE MACINTYRE': 'Steve MacIntyre',
+    'MAKSIM MAYOROV': 'Maxim Mayorov', 'AARON MACKENZIE': 'Aaron MacKenzie', 'DEREK MACKENZIE': 'Derek MacKenzie',
+    'RODNEY PELLEY': 'Rod Pelley', 'BRETT MACLEAN': 'Brett MacLean', 'ANDREW MACWILLIAM': 'Andrew MacWilliam',
+    'BRYAN MCCABE': 'Bryan McCabe', 'OLIVIER MAGNAN': 'Olivier Magnan-Grenier', 'DEAN MCAMMOND': 'Dean McAmmond',
+    'KENNDAL MCARDLE': 'Kenndal McArdle', 'ANDY MCDONALD': 'Andy McDonald', 'COLIN MCDONALD': 'Colin McDonald',
+    'JOHN MCCARTHY': 'John McCarthy', 'STEVE MCCARTHY': 'Steve McCarthy', 'DARREN MCCARTY': 'Darren McCarty',
+    'JAY MCCLEMENT': 'Jay McClement', 'CODY MCCORMICK': 'Cody McCormick', 'MAX MCCORMICK': 'Max McCormick',
+    'BROCK MCGINN': 'Brock McGinn', 'TYE MCGINN': 'Tye McGinn', 'BRIAN MCGRATTAN': 'Brian McGrattan',
+    'DAVID MCINTYRE': 'David McIntyre', 'NATHAN MCIVER': 'Nathan McIver', 'JAY MCKEE': 'Jay McKee',
+    'CURTIS MCKENZIE': 'Curtis McKenzie', 'FRAZER MCLAREN': 'Frazer McLaren', 'BRETT MCLEAN': 'Brett McLean',
+    'BRANDON MCMILLAN': 'Brandon McMillan', 'CARSON MCMILLAN': 'Carson McMillan', 'PHILIP MCRAE':
+    'Philip McRae', 'FREDERICK MEYER IV': 'Freddy Meyer', 'MICHAEL MODANO': 'Mike Modano',
+    'CHRISTOPHER NEIL': 'Chris Neil', 'MATTHEW NIETO': 'Matt Nieto', 'JOHN ODUYA': 'Johnny Oduya',
+    'PIERRE PARENTEAU': 'PA Parenteau', 'MARC POULIOT': 'Marc-Antoine Pouliot', 'MAXWELL REINHART': 'Max Reinhart',
+    'MICHAEL RUPP': 'Mike Rupp', 'ROBERT SCUDERI': 'Rob Scuderi', 'TOMMY SESTITO': 'Tom Sestito',
+    'MICHAEL SILLINGER': 'Mike Sillinger', 'JONATHAN SIM': 'Jon Sim', 'MARTIN ST LOUIS': 'Martin St. Louis',
+    'MATTHEW STAJAN': 'Matt Stajan', 'ZACHERY STORTINI': 'Zack Stortini', 'PK SUBBAN': 'PK Subban',
+    'WILLIAM THOMAS': 'Bill Thomas', 'R.J. UMBERGER': 'RJ Umberger', 'RJ UMBERGER': 'RJ Umberger',
+    'MARK VAN GUILDER': 'Mark van Guilder', 'BRYCE VAN BRABANT': 'Bryce van Brabant',
+    'DAVID VAN DER GULIK': 'David van der Gulik', 'MIKE VAN RYN': 'Mike van Ryn', 'ANDREW WOZNIEWSKI': 'Andy Wozniewski',
+    'JAMES WYMAN': 'JT Wyman', 'JT WYMAN': 'JT Wyman', 'NIKOLAY ZHERDEV': 'Nikolai Zherdev',
+    'HARRISON ZOLNIERCZYK': 'Harry Zolnierczyk', 'MARTIN ST PIERRE': 'Martin St. Pierre', 'B.J CROMBEEN': 'B.J. Crombeen',
+    'DENIS GAUTHIER JR.': 'DENIS GAUTHIER', 'DENIS JR. GAUTHIER': 'DENIS GAUTHIER', 'MARC-ANDRE FLEURY': 'Marc-Andre Fleury',
+    'DAN LACOUTURE': 'Dan LaCouture', 'RICK DIPIETRO': 'Rick DiPietro', 'JOEY MACDONALD': 'Joey MacDonald',
+    'TIMOTHY JR. THOMAS': 'Tim Thomas', 'ILJA BRYZGALOV': 'Ilya Bryzgalov', 'MATHEW DUMBA': 'Matt Dumba',
+    'MICHAËL BOURNIVAL': 'Michael Bournival', 'MATTHEW BENNING': 'Matt Benning', 'ZACHARY SANFORD': 'Zach Sanford',
+    'AJ GREER': 'A.J. Greer', 'JT COMPHER': 'J.T. Compher', 'NICOLAS PETAN': 'Nic Petan',
+    'VINCENT HINOSTROZA': 'Vinnie Hinostroza', 'PHILIP VARONE': 'Phil Varone', 'JOSHUA MORRISSEY': 'Josh Morrissey',
+    'Mathew Bodie': 'Mat Bodie', 'MICHAEL FERLAND': 'Micheal Ferland', 'MICHAEL SANTORELLI' :'Mike Santorelli',
+    'CHRISTOPHER BREEN': 'Chris Breen', 'BRYCE VAN BRABRANT': 'Bryce Van Brabant', 'ALEXANDER KILLORN': 'Alex Killorn',
+    'JOSEPH MORROW': 'Joe Morrow', 'ALEX STEEN': 'Alexander Steen', 'BRADLEY MILLS': 'Brad Mills',
+    'MICHAEL SISLO': 'Mike Sislo', 'MICHAEL VERNACE': 'Mike Vernace', 'STEVEN REINPRECHT': 'Steve Reinprecht',
+    'MATTHEW MURRAY': 'Matt Murray', 'THOMAS MCCOLLUM': 'TOM MCCOLLUM', 'MICHAEL MATHESON': 'MIKE MATHESON',
+    'BOO NIEVES': 'CRISTOVAL NIEVES', 'J.F. BERUBE': 'JEAN-FRANCOIS BERUBE', 'TONY DEANGELO': 'ANTHONY DEANGELO',
+    'JEFFREY HAMILTON': 'JEFF HAMILTON', 'JAMES VANDERMEER': 'JIM VANDERMEER', 'MICHAEL YORK': 'MIKE YORK',
+    'EMMANUEL LEGACE': 'MANNY LEGACE', 'JAMES DOWD': 'JIM DOWD', 'ANDREW MILLER': 'DREW MILLER',
+    'JOHN PEVERLEY': 'RICH PEVERLEY', 'ILJA ZUBOV': 'ILYA ZUBOV', 'CHRISTOPHER MINARD': 'CHRIS MINARD',
+    'BENJAMIN ONDRUS': 'BEN ONDRUS', 'ZACH FITZGERALD': 'ZACK FITZGERALD', 'STEPHEN VALIQUETTE': 'STEVE VALIQUETTE',
+    'OLAF KOLZIG': 'OLIE KOLZIG', 'J-SEBASTIEN AUBIN': 'JEAN-SEBASTIEN AUBIN', 'ALEXANDER AULD': 'ALEX AULD',
+    'JAMES HOWARD': 'JIMMY HOWARD', 'JEFF DROUIN-DESLAURIERS': 'JEFF DESLAURIERS', 'SIMEON VARLAMOV': 'SEMYON VARLAMOV',
+    'ALEXANDER PECHURSKI': 'Alexander Pechurskiy', 'JEFFREY PENNER': 'JEFF PENNER', 'EMMANUEL FERNANDEZ': 'Manny FERNANDEZ',
+    'ALEXANDER PETROVIC': 'ALEX PETROVIC', 'ZACHARY ASTON-REESE': 'ZACH ASTON-REESE', 'J-F BERUBE': 'JEAN-FRANCOIS BERUBE',
+    "DANNY O'REGAN": "DANIEL O'REGAN", "PATRICK MAROON": "PAT MAROON", "LEE  STEMPNIAK": "LEE STEMPNIAK",
+    "JAMES REIMER ,": "JAMES REIMER", "CALVIN PETERSEN ,": "CALVIN PETERSEN", "CAL PETERSEN": "CALVIN PETERSEN",
+    "ALEXANDER NYLANDER": "ALEX NYLANDER", "CHRISTOPHER WAGNER": "CHRIS WAGNER"
+}
 
 
 def fix_name(name):
@@ -158,6 +151,31 @@ def get_team(team):
     return TEAMS.get(team, team).upper()
 
 
+def custom_formatwarning(msg, *args, **kwargs): 
+    """
+    Implement own custom warning. Cleaner this way. Reason why i still use warning is so i can set to
+    ignore them if i want to (e.g. live_scrape line 200). 
+
+    shared.print_error relies on this function.
+
+    See here for more on ANSI escape codes - https://en.wikipedia.org/wiki/ANSI_escape_code
+
+    :param msg: Str to print
+
+    :return: str
+    """
+    ansi_red_code = '\033[0;31m'
+    ansi_no_color = '\033[0m'
+
+    return "{red}Error: {msg}\n{no_color}".format(red=ansi_red_code, no_color=ansi_no_color, msg=msg)
+    
+warnings.formatwarning = custom_formatwarning
+
+def print_error(msg):
+    """Print the Error"""
+    warnings.warn(msg)
+
+
 def get_season(date):
     """
     Get Season based on from_date
@@ -169,16 +187,10 @@ def get_season(date):
     year = date[:4]
     date = time.strptime(date, "%Y-%m-%d")
 
-    if date > time.strptime('-'.join([year, '01-01']), "%Y-%m-%d"):
-        if date < time.strptime('-'.join([year, '09-01']), "%Y-%m-%d"):
-            return int(year) - 1
-        else:
-            return int(year)
+    if time.strptime('-'.join([year, '01-01']), "%Y-%m-%d") <= date <= time.strptime('-'.join([year, '08-30']), "%Y-%m-%d"):
+        return int(year) - 1
     else:
-        if date > time.strptime('-'.join([year, '07-01']), "%Y-%m-%d"):
-            return int(year)
-        else:
-            return int(year) - 1
+        return int(year)
 
 
 def convert_to_seconds(minutes):
@@ -192,8 +204,11 @@ def convert_to_seconds(minutes):
     if minutes == '-16:0-':
         return '1200'      # Sometimes in the html at the end of the game the time is -16:0-
 
-    import datetime
-    x = time.strptime(minutes.strip(' '), '%M:%S')
+    # If the time is junk not much i can do
+    try:
+        x = time.strptime(minutes.strip(' '), '%M:%S')
+    except ValueError:
+        return None
 
     return datetime.timedelta(hours=x.tm_hour, minutes=x.tm_min, seconds=x.tm_sec).total_seconds()
 
@@ -219,21 +234,16 @@ def scrape_page(url):
     except requests.exceptions.ReadTimeout:
         # If it times out and it's the schedule print an error message...otherwise just make the page = None
         if "schedule" in url:
-            raise HaltException("Timeout Error: The NHL API took too long to respond to our request. "
-                                "\nPlease Try Again (you may need to try a few times before it works). ")
+            raise Exception("Timeout Error: The NHL API took too long to respond to our request. "
+                                "Please Try Again (you may need to try a few times before it works). ")
         else:
-            print_warning("Timeout Error: The server took too long to respond to our request.")
+            print_error("Timeout Error: The server took too long to respond to our request.")
             page = None
 
     # Pause for 1 second - make it more if you want
     time.sleep(1)
 
     return page
-
-
-def print_warning(msg):
-    """Print the Warning"""
-    warnings.warn(msg)
 
 
 def if_rescrape(user_rescrape):
@@ -251,7 +261,7 @@ def if_rescrape(user_rescrape):
     if isinstance(user_rescrape, bool):
         re_scrape = user_rescrape
     else:
-        raise HaltException("Error: 'if_rescrape' must be a boolean. Not a {}".format(type(user_rescrape)))
+        raise ValueError("Error: 'if_rescrape' must be a boolean. Not a {}".format(type(user_rescrape)))
 
 
 def add_dir(user_dir):
@@ -272,23 +282,22 @@ def add_dir(user_dir):
         return
 
     # Something was given
-    # Either True or stirng to directory
-    # We tell by the type
+    # Either True or string to directory
     # If boolean refer to the home directory
     if isinstance(user_dir, bool):
         docs_dir = os.path.join(os.path.expanduser('~'), "hockey_scraper_data")
         # Create if needed
         if not os.path.isdir(docs_dir):
-            print_warning("Creating the hockey_scraper_data directory in the home directory")
+            print_error("Creating the hockey_scraper_data directory in the home directory")
             os.mkdir(docs_dir)
     elif isinstance(user_dir, str) and os.path.isdir(user_dir):
         docs_dir = user_dir
     elif not (isinstance(user_dir, str) and isinstance(user_dir, bool)):
         docs_dir = False
-        print_warning("The docs_dir argument provided is invalid")
+        print_error("The docs_dir argument provided is invalid")
     else:
         docs_dir = False
-        print_warning("The directory specified for the saving of scraped docs doesn't exist. Therefore:"
+        print_error("The directory specified for the saving of scraped docs doesn't exist. Therefore:"
               "\n1. All specified games will be scraped from their appropriate sources (NHL or ESPN)."
               "\n2. All scraped files will NOT be saved at all. Please either create the directory you want them to be "
               "deposited in or recheck the directory you typed in and start again.\n")
@@ -306,22 +315,14 @@ def get_file(file_info):
 
     :return: page
     """
-    original_path = os.getcwd()
     file_info['dir'] = docs_dir
 
-    # If something is provided...we try to change the cwd
-    if file_info['dir']:
-        os.chdir(file_info['dir'])
-
     # If everything checks out we'll retrieve it, otherwise we scrape it
-    if docs_dir and sp.check_file_exists(file_info) and re_scrape is False:
+    if docs_dir and sp.check_file_exists(file_info) and not re_scrape:
         page = sp.get_page(file_info)
     else:
         page = scrape_page(file_info['url'])
-        sp.save_page(page, file_info, docs_dir)
-
-    # Change back to current cwd to avoid any potential issues
-    os.chdir(original_path)
+        sp.save_page(page, file_info)
 
     return page
 
@@ -336,7 +337,7 @@ def check_data_format(data_format):
     :return: Boolean - True if good
     """
     if not data_format or data_format.lower() not in ['csv', 'pandas']:
-        raise HaltException('{} is an unspecified data format. The two options are Csv and Pandas '
+        raise ValueError('{} is an unspecified data format. The two options are Csv and Pandas '
                             '(Csv is default)\n'.format(data_format))
 
 
@@ -351,42 +352,33 @@ def check_valid_dates(from_date, to_date):
     """
     try:
         if time.strptime(to_date, "%Y-%m-%d") < time.strptime(from_date, "%Y-%m-%d"):
-            raise HaltException("Error: The second date input is earlier than the first one")
+            raise ValueError("Error: The second date input is earlier than the first one")
     except ValueError:
-        raise HaltException("Error: Incorrect format given for dates. They must be given like 'yyyy-mm-dd' "
+        raise ValueError("Error: Incorrect format given for dates. They must be given like 'yyyy-mm-dd' "
                             "(ex: '2016-10-01').")
 
 
-def to_csv(base_file_name, pbp_df, shifts_df, league):
+def to_csv(base_file_name, df, league, file_type):
     """
-    Write DataFrame(s) to csv file(s)
+    Write DataFrame to csv file
 
     :param base_file_name: name of file
-    :param pbp_df: pbp DataFrame
-    :param shifts_df: shifts DataFrame
+    :param df: DataFrame
     :param league: nhl or nwhl
+    :param file_type: type of file despoiting
 
     :return: None
     """
-    pbp_file = shifts_file = base_file_name
-
     # This was a late addition so we add support here
     if isinstance(docs_dir, str) and not os.path.isdir(os.path.join(docs_dir, "csvs")):
         os.mkdir(os.path.join(docs_dir, "csvs"))
 
-    if pbp_df is not None:
+    if df is not None:
         if isinstance(docs_dir, str):
-            pbp_file = os.path.join(docs_dir, "csvs", '{}_pbp{}.csv'.format(league, base_file_name))
+            file_name = os.path.join(docs_dir, "csvs", '{}_{}_{}.csv'.format(league, file_type, base_file_name))
         else:
-            pbp_file = '{}_pbp{}.csv'.format(league, pbp_file)
+            file_name = '{}_{}_{}.csv'.format(league, file_type, base_file_name)
 
-        print("\nPbp data deposited in file - " + pbp_file)
-        pbp_df.to_csv(pbp_file, sep=',', encoding='utf-8')
-    if shifts_df is not None:
-        if isinstance(docs_dir, str):
-            shifts_file = os.path.join(docs_dir, "csvs", '{}_shifts{}.csv'.format(league, base_file_name))
-        else:
-            shifts_file = '{}_shifts{}.csv'.format(league, shifts_file)
+        print("---> {} {} data deposited in file - {}".format(league, file_type, file_name))
+        df.to_csv(file_name, sep=',', encoding='utf-8')
 
-        print("Shift data deposited in file - " + shifts_file)
-        shifts_df.to_csv(shifts_file, sep=',', encoding='utf-8')

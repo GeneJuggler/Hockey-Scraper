@@ -2,17 +2,11 @@
 Functions to scrape by season, games, and date range
 """
 
-import random
-
+import time
 import pandas as pd
-
 import hockey_scraper.nhl.game_scraper as game_scraper
 import hockey_scraper.nhl.json_schedule as json_schedule
 import hockey_scraper.utils.shared as shared
-
-# This hold the scraping errors in a string format.
-# This may seem pointless but I have a personal reason for it (I think...)
-errors = ''
 
 
 def print_errors():
@@ -28,33 +22,27 @@ def print_errors():
 
     if game_scraper.broken_pbp_games:
         print('\nBroken pbp:')
-        errors += 'Broken pbp:'
         for x in game_scraper.broken_pbp_games:
-            print(x[0], x[1])
-            errors = ' '.join([errors, str(x[0]), ","])
+            print("-", x[0], x[1])
+        print("")
 
     if game_scraper.broken_shifts_games:
-        print('\nBroken shifts:')
-        errors += 'Broken shifts:'
+        print('Broken shifts:')
         for x in game_scraper.broken_shifts_games:
-            print(x[0], x[1])
-            errors = ' '.join([errors, str(x[0]), ","])
+            print("-", x[0], x[1])
+        print("")
 
     if game_scraper.players_missing_ids:
-        print("\nPlayers missing ID's:")
-        errors += "Players missing ID's:"
+        print("Players missing ID's:")
         for x in game_scraper.players_missing_ids:
-            print(x[0], x[1])
-            errors = ' '.join([errors, str(x[0]), ","])
+            print("-", x[0], x[1])
+        print("")
 
     if game_scraper.missing_coords:
-        print('\nGames missing coordinates:')
-        errors += 'Games missing coordinates:'
+        print('Games missing coordinates:')
         for x in game_scraper.missing_coords:
-            print(x[0], x[1])
-            errors = ' '.join([errors, str(x[0]), ","])
-
-    print('\n')
+            print("-", x[0], x[1])
+        print("")
 
     # Clear them all out for the next call
     game_scraper.broken_shifts_games = []
@@ -91,8 +79,7 @@ def scrape_list_of_games(games, if_scrape_shifts):
         pbp_df.apply(lambda row: game_scraper.check_goalie(row), axis=1)
 
     if if_scrape_shifts:
-        shifts_df = pd.concat(shifts_dfs)
-        shifts_df = shifts_df.reset_index(drop=True)
+        shifts_df = pd.concat(shifts_dfs).reset_index(drop=True)
     else:
         shifts_df = None
 
@@ -100,6 +87,43 @@ def scrape_list_of_games(games, if_scrape_shifts):
     print_errors()
 
     return pbp_df, shifts_df
+
+
+def scrape_schedule(from_date, to_date, data_format='pandas', rescrape=False, docs_dir=False):
+    """
+    Scrape the games schedule in a given range.
+    
+    :param from_date: date you want to scrape from
+    :param to_date: date you want to scrape to 
+    :param data_format: format you want data in - csv or  pandas (pandas is default)
+    :param rescrape: If you want to rescrape pages already scraped. Only applies if you supply a docs dir. (def. = None)
+    :param docs_dir: Directory that either contains previously scraped docs or one that you want them to be deposited 
+                     in after scraping. When True it'll refer to (or if needed create) such a repository in the home
+                     directory. When provided a string it'll try to use that. Here it must be a valid directory otheriwse
+                     it won't work (I won't make it for you). When False the files won't be saved.
+    
+    :return: DataFrame of None
+    """
+    cols = ["game_id", "date", "venue", "home_team", "away_team", "start_time", "home_score", "away_score", "status"]
+
+    # First check if the inputs are good
+    shared.check_data_format(data_format)
+    shared.check_valid_dates(from_date, to_date)
+
+    # Check on the docs_dir and re_scrape
+    shared.add_dir(docs_dir)
+    shared.if_rescrape(rescrape)
+
+    print("Scraping the schedule between {} and {}".format(from_date, to_date))
+
+    # live = True allows us to scrape games that aren't final
+    sched = json_schedule.scrape_schedule(from_date, to_date, preseason=True, not_over=True)
+    sched_df = pd.DataFrame(sched, columns=cols)
+
+    if data_format.lower() == 'csv':
+        shared.to_csv(from_date + '--' + to_date, sched_df, "nhl", "schedule")
+    else:
+        return sched_df
 
 
 def scrape_date_range(from_date, to_date, if_scrape_shifts, data_format='csv', preseason=False, rescrape=False,
@@ -133,10 +157,10 @@ def scrape_date_range(from_date, to_date, if_scrape_shifts, data_format='csv', p
     pbp_df, shifts_df = scrape_list_of_games(games, if_scrape_shifts)
 
     if data_format.lower() == 'csv':
-        shared.to_csv(from_date + '--' + to_date, pbp_df, shifts_df, "nhl")
+        shared.to_csv(from_date + '--' + to_date, pbp_df, "nhl", "pbp")
+        shared.to_csv(from_date + '--' + to_date, shifts_df, "nhl", "shifts")
     else:
-        return {"pbp": pbp_df, "shifts": shifts_df, "errors": errors} if if_scrape_shifts else {"pbp": pbp_df,
-                                                                                                "errors": errors}
+        return {"pbp": pbp_df, "shifts": shifts_df} if if_scrape_shifts else {"pbp": pbp_df}
 
 
 def scrape_seasons(seasons, if_scrape_shifts, data_format='csv', preseason=False, rescrape=False, docs_dir=False):
@@ -174,16 +198,17 @@ def scrape_seasons(seasons, if_scrape_shifts, data_format='csv', preseason=False
         pbp_df, shifts_df = scrape_list_of_games(games, if_scrape_shifts)
 
         if data_format.lower() == 'csv':
-            shared.to_csv(str(season) + str(season + 1), pbp_df, shifts_df, "nhl")
+            shared.to_csv(str(season) + str(season + 1), pbp_df, "nhl", "pbp")
+            shared.to_csv(str(season) + str(season + 1), shifts_df, "nhl", "shifts")
         else:
             master_pbps.append(pbp_df)
             master_shifts.append(shifts_df)
 
     if data_format.lower() == 'pandas':
         if if_scrape_shifts:
-            return {"pbp": pd.concat(master_pbps), "shifts": pd.concat(master_shifts), "errors": errors}
+            return {"pbp": pd.concat(master_pbps), "shifts": pd.concat(master_shifts)}
         else:
-            return {"pbp": pd.concat(master_pbps), "errors": errors}
+            return {"pbp": pd.concat(master_pbps)}
 
 
 def scrape_games(games, if_scrape_shifts, data_format='csv', rescrape=False, docs_dir=False):
@@ -215,7 +240,7 @@ def scrape_games(games, if_scrape_shifts, data_format='csv', rescrape=False, doc
     pbp_df, shifts_df = scrape_list_of_games(games_list, if_scrape_shifts)
 
     if data_format.lower() == 'csv':
-        shared.to_csv(str(random.randint(1, 101)), pbp_df, shifts_df, "nhl")
+        shared.to_csv(str(int(time.time())), pbp_df, "nhl", "pbp")
+        shared.to_csv(str(int(time.time())), shifts_df, "nhl", "shifts")
     else:
-        return {"pbp": pbp_df, "shifts": shifts_df, "errors": errors} if if_scrape_shifts else {"pbp": pbp_df,
-                                                                                                "errors": errors}
+        return {"pbp": pbp_df, "shifts": shifts_df} if if_scrape_shifts else {"pbp": pbp_df}

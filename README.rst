@@ -11,33 +11,30 @@ Hockey-Scraper
 .. inclusion-marker-for-sphinx
 
 
+**Notes:**
+ * Coordinates are only scraped from ESPN for versions 1.33+
+ * NWHL usage has been deprecated due to the removal of the pbp information for each game.
+
+
 Purpose
 -------
 
-This package is designed to allow people to scrape both NHL and NWHL data. For the NHL, one can scrape the Play by Play
-and Shift data off of the National Hockey League (NHL) API and website for all preseason, regular season, and playoff
-games since the 2007-2008 season. For the NWHL, one is able to scrape the Play by Play data off of their API and website
-for all preseason, regular season, and playoff games since the 2015-2016 season.
+Scrape NHL data off the NHL API and website. This includes the Play by Play and Shift data for each game. One can also scrape the schedule information. It currently supports all preseason, regular season, and playoff games from the 2007-2008 season onwards. 
 
 Prerequisites
 -------------
 
-You are going to need to have python installed for this. This should work for both python 2.7 and 3 (I recommend having
-from at least version 3.6.0 but earlier versions should be fine).
-
-If you don’t have python installed on your machine, I’d recommend installing it through the `anaconda distribution
-<https://www.continuum.io/downloads>`_. Anaconda comes with a bunch of libraries pre-installed so it’s easier to start off.
-
+You are going to need to have python installed for this. This should work for both python 2.7 and 3. I recommend having
+from at least version 3.6.0 but earlier versions should be fine.
 
 Installation
 ------------
 
-To install all you need to do is open up your terminal and type in:
+To install all you need to do is open up your terminal and run:
 
 ::
 
     pip install hockey_scraper
-
 
 
 NHL Usage
@@ -121,6 +118,21 @@ stored (it must exist beforehand).
     hockey_scraper.scrape_seasons([2015, 2016], True, docs_dir=USER_PATH, rescrape=True)
 
 
+Schedule
+~~~~~~~~
+
+The schedule for any past or future games can be scraped as follows:
+
+::
+
+    import hockey_scraper
+
+    # As oppossed to the other calls the default format is 'Pandas' which returns a DataFrame
+    sched_df = hockey_scraper.scrape_schedule("2019-10-01", "2020-07-01")
+
+The columns returned are: ['game_id', 'date', 'venue', 'home_team', 'away_team', 'start_time', 'home_score', 'away_score', 'status']
+
+
 Live Scraping
 ~~~~~~~~~~~~~
 
@@ -145,16 +157,12 @@ Here is a simple example of a way to setup live scraping. I strongly suggest che
        # 2. Not in Intermission
        # 3. Not Over
        if game.is_ongoing():
-           # Get both DataFrames
-           pbp_df = game.get_pbp()
-           shifts_df = game.get_shifts()
-
            # Print the description of the last event
-           print(game.game_id, "->", pbp_df.iloc[-1]['Description'])
+           print(game.game_id, "->", game.pbp_df.iloc[-1]['Description'])
 
            # Store in CSV files
-           pbp_df.to_csv(f"../hockey_scraper_data/{game.game_id}_pbp.csv", sep=',')
-           shifts_df.to_csv(f"../hockey_scraper_data/{game.game_id}_shifts.csv", sep=',')
+           game.pbp_df.to_csv(f"../hockey_scraper_data/{game.game_id}_pbp.csv", sep=',')
+           game.shifts_df.to_csv(f"../hockey_scraper_data/{game.game_id}_shifts.csv", sep=',')
 
    if __name__ == "__main__":
        # B4 we start set the directory to store the files
@@ -175,12 +183,13 @@ Here is a simple example of a way to setup live scraping. I strongly suggest che
                to_csv(game)
 
 
-NWHL Usage
-----------
 
-Scrape data on a season by season level:
+.. NWHL Usage
+.. -------------
 
-::
+.. Scrape data on a season by season level:
+
+.. ::
 
     import hockey_scraper
 
@@ -190,9 +199,9 @@ Scrape data on a season by season level:
     # Scrapes the 2008 season and returns a Pandas DataFrame containing the pbp
     scraped_data = hockey_scraper.nwhl.scrape_seasons([2017], data_format='Pandas')
 
-Scrape a list of games:
+.. Scrape a list of games:
 
-::
+.. ::
 
     import hockey_scraper
 
@@ -200,9 +209,9 @@ Scrape a list of games:
     # Also saves the scraped pages
     hockey_scraper.nwhl.scrape_games([14694271, 14814946, 14689491], docs_dir="...Path you specified")
 
-Scrape all games in a given date range:
+.. Scrape all games in a given date range:
 
-::
+.. ::
 
     import hockey_scraper
 
@@ -218,12 +227,4 @@ Contact
 
 Please contact me for any issues or suggestions. For any bugs or anything related to the code please open an issue.
 Otherwise you can email me at Harryshomer@gmail.com.
-
-
-
-
-
-
-
-
 

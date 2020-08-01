@@ -4,16 +4,14 @@ This module contains code to scrape coordinates for games off of espn for any gi
 
 import re
 import xml.etree.ElementTree as etree
-
 import pandas as pd
 from bs4 import BeautifulSoup
-
 import hockey_scraper.utils.shared as shared
 
 
 def event_type(play_description):
     """
-    Returns the event type (ex: a SHOT or a GOAL...etc) given the event description 
+    Returns the event type (ex: a SHOT or a GOAL...etc) given the event description. 
     
     :param play_description: description of play
     
@@ -22,7 +20,7 @@ def event_type(play_description):
     events = {'GOAL SCORED': 'GOAL', 'SHOT ON GOAL': 'SHOT', 'SHOT MISSED': 'MISS', 'SHOT BLOCKED': 'BLOCK',
               'PENALTY': 'PENL', 'FACEOFF': 'FAC', 'HIT': 'HIT', 'TAKEAWAY': 'TAKE', 'GIVEAWAY': 'GIVE'}
 
-    event = [events[e] for e in events.keys() if e in play_description]
+    event = [events[e] for e in events if e in play_description]
     return event[0] if event else None
 
 
@@ -36,9 +34,8 @@ def get_game_ids(response):
     """
     soup = BeautifulSoup(response, 'lxml')
 
-    divs = soup.findAll('div', {'class': "game-header"})
-    regex = re.compile(r'id="(\d+)')
-    game_ids = [regex.findall(str(div))[0] for div in divs]
+    sections = soup.findAll("section", {"class": "Scoreboard bg-clr-white flex flex-auto justify-between"})
+    game_ids = [section['id'] for section in sections]
 
     return game_ids
 
@@ -46,16 +43,36 @@ def get_game_ids(response):
 def get_teams(response):
     """
     Extract Teams for date from doc
+
+    ul-> class = ScoreCell__Competitors
+
+    div -> class = ScoreCell__TeamName ScoreCell__TeamName--shortDisplayName truncate db
     
     :param response: doc
     
     :return: list of teams    
     """
+    teams = []
     soup = BeautifulSoup(response, 'lxml')
 
-    td = soup.findAll('td', {'class': "team"})
-    teams = [shared.get_team(t.get_text().upper()) for t in td if t.get_text() != '']
+    uls = soup.findAll('div', {'class': "ScoreCell__Team"})
 
+    for ul in uls:
+        actual_tm = None
+        tm = ul.find('div', {'class': "ScoreCell__TeamName ScoreCell__TeamName--shortDisplayName truncate db"}).text
+        
+        # ESPN stores the name and not the city
+        for real_tm in list(shared.TEAMS.keys()):
+            if tm.upper() in real_tm:
+                actual_tm = shared.TEAMS[real_tm]
+
+        # If not found we'll let the user know...this may happens
+        if actual_tm is None:
+            shared.print_error("The team {} in the espn pbp is unknown. We use the supplied team name".format(tm))
+            actual_tm = tm
+
+        teams.append(actual_tm)
+        
     # Make a list of both teams for each game
     games = [teams[i:i + 2] for i in range(0, len(teams), 2)]
 
@@ -71,7 +88,7 @@ def get_espn_date(date):
     :return: response 
     """
     page_info = {
-        "url": 'http://www.espn.com/nhl/scoreboard?date={}'.format(date.replace('-', '')),
+        "url": 'http://www.espn.com/nhl/scoreboard/_/date/{}'.format(date.replace('-', '')),
         "name": date,
         "type": "espn_scoreboard",
         "season": shared.get_season(date),
@@ -88,7 +105,7 @@ def get_espn_date(date):
 def get_espn_game_id(date, home_team, away_team):
     """
     Scrapes the day's schedule and gets the id for the given game
-    Ex: http://www.espn.com/nhl/scoreboard?date=20161024
+    Ex: http://www.espn.com/nhl/scoreboard/_/date/20161024
     
     :param date: format-> YearMonthDay-> 20161024
     :param home_team: home team
@@ -118,7 +135,7 @@ def get_espn_game(date, home_team, away_team, game_id=None):
     
     :return: raw xml
     """
-    # Get if not provided
+    # Get if not provided - for live games
     if not game_id:
         game_id = get_espn_game_id(date, home_team.upper(), away_team.upper())
 
@@ -130,6 +147,7 @@ def get_espn_game(date, home_team, away_team, game_id=None):
     }
     response = shared.get_file(file_info)
 
+    ## Why here???
     if response is None:
         raise Exception
 
@@ -178,7 +196,7 @@ def parse_espn(espn_xml):
     try:
         tree = etree.fromstring(espn_xml)
     except etree.ParseError:
-        shared.print_warning("Espn pbp isn't valid xml, therefore coordinates can't be obtained for this game")
+        shared.print_error("Espn pbp isn't valid xml, therefore coordinates can't be obtained for this game")
         return pd.DataFrame([], columns=columns)
 
     events = tree[1]
@@ -200,18 +218,23 @@ def scrape_game(date, home_team, away_team, game_id=None):
     :return: DataFrame with info 
     """
     try:
-        shared.print_warning('Using espn for pbp')
+        shared.print_error('Using espn for pbp')
         espn_xml = get_espn_game(date, home_team, away_team, game_id)
     except Exception as e:
-        shared.print_warning("Espn pbp for game {a} {b} {c} is either not there or can't be obtained {d}".format(a=date,
+        shared.print_error("Espn pbp for game {a} {b} {c} is either not there or can't be obtained {d}".format(a=date,
                                                                                                                  b=home_team,
                                                                                                                  c=away_team, d=e))
-        return None
+        return pd.DataFrame()
 
     try:
         espn_df = parse_espn(espn_xml)
     except Exception as e:
-        shared.print_warning("Error parsing Espn pbp for game {a} {b} {c} {d}".format(a=date, b=home_team, c=away_team, d=e))
+        shared.print_error("Error parsing Espn pbp for game {a} {b} {c} {d}".format(a=date, b=home_team, c=away_team, d=e))
         return None
 
-    return espn_df
+    espn_df.period = espn_df.period.astype(int)
+    
+    return pd.DataFrame()
+
+
+
