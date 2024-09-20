@@ -64,7 +64,7 @@ def get_contents(game_html):
     
     :return: "soupified" html 
     """
-    parsers = ["lxml", "html.parser", "html5lib"]
+    parsers = ["html5lib", "lxml", "html.parser"]
     strainer = SoupStrainer('td', attrs={'class': re.compile(r'bborder')})
 
     for parser in parsers:
@@ -84,7 +84,7 @@ def get_contents(game_html):
 
 def strip_html_pbp(td):
     """
-    Strip html tags and such 
+    Strip html tags and such. (Note to Self: Don't touch this!!!) 
     
     :param td: pbp
     
@@ -240,7 +240,9 @@ def add_strength(event_dict, home_players, away_players):
 
 def add_event_team(event_dict, event):
     """
-    Add event team for event 
+    Add event team for event. 
+
+    Always first thing in description 
     
     :param event_dict: dict of event info
     :param event: list with parsed event info
@@ -248,8 +250,7 @@ def add_event_team(event_dict, event):
     :return: None
     """
     if event_dict['Event'] in ['GOAL', 'SHOT', 'MISS', 'BLOCK', 'PENL', 'FAC', 'HIT', 'TAKE', 'GIVE']:
-        # Split the description and take the first thing (which is the team)
-        event_dict['Ev_Team'] = event[5].split()[0]
+        event_dict['Ev_Team'] = shared.convert_tricode(event[5].split()[0])
     else:
         event_dict['Ev_Team'] = ''
 
@@ -336,7 +337,7 @@ def get_penalty(play_description, players, home_team):
             player = get_player_name(numbers[0], players, play_description[:3], home_team)
 
         # Check if the number and player match up
-        if play_description.find(player['last_name']) != -1:
+        if player['last_name'] is not None and player['last_name'] in play_description:
             # beg_penalty_index is right after the penalty taker's last name (+1 for whitespace)
             # Then we take from after his last name to right after the parentheses
             beg_penalty_index = play_description.find(player['last_name']) + len(player['last_name']) + 1
@@ -355,17 +356,14 @@ def get_player_name(number, players, team, home_team):
     
     :param number: player's number
     :param players: all players with info
-    :param team: team of player
-    :param home_team: home team
+    :param team: team of player listed in html
+    :param home_team: home team defined b4 hand (from json)
     
     :return: dict with full and and id
     """
     player = None
+    team = shared.convert_tricode(team) # Needed to convert from new format to old
     venue = "Home" if team == home_team else "Away"
-
-    # # Get the info when we get the same number for that team
-    # player = [{'name': name, 'id': players[venue][name]['id'], 'last_name': players[venue][name]['last_name']}
-    #           for name in players[venue] if players[venue][name]['number'] == number]
 
     for name in players[venue]:
         if players[venue][name]['number'] == number:
@@ -542,14 +540,17 @@ def parse_block(description, players, home_team):
     regex = re.compile(r'(.{3})\s+#(\d+)')
     desc = regex.findall(description)  # [[Team, num], [Team, num]]
 
-    p1 = get_player_name(desc[len(desc) - 1][1], players, desc[len(desc) - 1][0], home_team)
-    event_info['p1_name'] = p1['name']
-    event_info['p1_ID'] = p1['id']
+    if len(desc) == 0:
+        event_info['p1_name'] = event_info['p2_name'] = event_info['p1_ID'] = event_info['p2_ID'] = None
+    else:
+        p1 = get_player_name(desc[len(desc) - 1][1], players, desc[len(desc) - 1][0], home_team)
+        event_info['p1_name'] = p1['name']
+        event_info['p1_ID'] = p1['id']
 
-    if len(desc) > 1:
-        p2 = get_player_name(desc[0][1], players, desc[0][0], home_team)
-        event_info['p2_name'] = p2['name']
-        event_info['p2_ID'] = p2['id']
+        if len(desc) > 1:
+            p2 = get_player_name(desc[0][1], players, desc[0][0], home_team)
+            event_info['p2_name'] = p2['name']
+            event_info['p2_ID'] = p2['id']
 
     return event_info
 
@@ -645,9 +646,9 @@ def add_event_players(event_dict, event, players, home_team):
     
     :return: None
     """
-    description = event[5].strip()
-    ev_team = description.split()[0]
     event_info = {}
+    description = event[5].strip()
+    ev_team = shared.convert_tricode(description.split()[0])
 
     if event[4] == 'FAC':
         event_info = parse_fac(description, players, ev_team, home_team)
@@ -687,7 +688,7 @@ def populate_players(event_dict, players, away_players, home_players):
             # Deal with the Home & Away Player Fields
             try:
                 ven_player = home_players[j] if venue == "Home" else away_players[j]
-                name = shared.fix_name(ven_player[0].upper())
+                name = shared.fix_name(ven_player[0])
                 event_dict['{}Player{}'.format(venue.lower(), j + 1)] = name
                 event_dict['{}Player{}_id'.format(venue.lower(), j + 1)] = players[venue][name]['id']
             except KeyError:
@@ -802,6 +803,7 @@ def scrape_pbp(game_html, game_id, players, teams):
         return None
 
     cleaned_html = clean_html_pbp(game_html)
+
     if len(cleaned_html) == 0:
         shared.print_error("Html pbp contains no plays, this game can't be scraped")
         return None

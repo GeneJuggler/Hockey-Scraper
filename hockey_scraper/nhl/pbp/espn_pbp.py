@@ -68,7 +68,7 @@ def get_teams(response):
 
         # If not found we'll let the user know...this may happens
         if actual_tm is None:
-            shared.print_error("The team {} in the espn pbp is unknown. We use the supplied team name".format(tm))
+            shared.print_warning("The team {} in the espn pbp is unknown. We use the supplied team name".format(tm))
             actual_tm = tm
 
         teams.append(actual_tm)
@@ -147,7 +147,10 @@ def get_espn_game(date, home_team, away_team, game_id=None):
     }
     response = shared.get_file(file_info)
 
-    ## Why here???
+    print(file_info)
+
+
+    ## Needed?
     if response is None:
         raise Exception
 
@@ -195,15 +198,18 @@ def parse_espn(espn_xml):
 
     try:
         tree = etree.fromstring(espn_xml)
-    except etree.ParseError:
+    except etree.ParseError as e:
         shared.print_error("Espn pbp isn't valid xml, therefore coordinates can't be obtained for this game")
         return pd.DataFrame([], columns=columns)
 
     events = tree[1]
     plays = [parse_event(event.text) for event in events]
-    plays = [play for play in plays if play is not None]    # Get rid of plays that are None
+    plays = [play for play in plays if play is not None]
 
-    return pd.DataFrame(plays, columns=columns)
+    df = pd.DataFrame(plays, columns=columns)
+    df.period = df.period.astype(int)  # Causes join issues with html later
+
+    return df
 
 
 def scrape_game(date, home_team, away_team, game_id=None):
@@ -218,7 +224,7 @@ def scrape_game(date, home_team, away_team, game_id=None):
     :return: DataFrame with info 
     """
     try:
-        shared.print_error('Using espn for pbp')
+        shared.print_warning('Using espn for pbp')
         espn_xml = get_espn_game(date, home_team, away_team, game_id)
     except Exception as e:
         shared.print_error("Espn pbp for game {a} {b} {c} is either not there or can't be obtained {d}".format(a=date,
@@ -229,12 +235,16 @@ def scrape_game(date, home_team, away_team, game_id=None):
     try:
         espn_df = parse_espn(espn_xml)
     except Exception as e:
-        shared.print_error("Error parsing Espn pbp for game {a} {b} {c} {d}".format(a=date, b=home_team, c=away_team, d=e))
-        return None
+        shared.print_error("Issue parsing Espn pbp for game {a} {b} {c} {d}".format(a=date, b=home_team, c=away_team, d=e))
+        return pd.DataFrame()
 
-    espn_df.period = espn_df.period.astype(int)
+    if espn_df.shape[0] == 0:
+        shared.print_error("Espn is missing coordinates for game {a} {b} {c}".format(a=date, b=home_team, c=away_team))
     
-    return pd.DataFrame()
+    return espn_df
 
 
 
+
+# if __name__ == "__main__":
+#     get_espn_game('2022-10-08', 'SJS', 'NSH')

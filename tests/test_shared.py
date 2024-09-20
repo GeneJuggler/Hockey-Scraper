@@ -2,16 +2,15 @@
 
 import os
 import shutil
-
 import pytest
 
-from hockey_scraper.utils import shared
+from hockey_scraper.utils import shared, config
 
 
 @pytest.fixture
 def file_info():
     return {
-        "url": 'http://statsapi.web.nhl.com/api/v1/game/{}/feed/live'.format(2017020001),
+        "url": 'https://api-web.nhle.com/v1/schedule/{}'.format("2017-10-05"),
         "name": str(2017020001),
         "type": "json_pbp",
         "season": 2017,
@@ -47,6 +46,9 @@ def test_get_season():
     """ Tests that this function returns the correct season for a given date"""
     assert shared.get_season("2017-10-01") == 2017
     assert shared.get_season("2016-06-01") == 2015
+    assert shared.get_season("2020-08-29") == 2019
+    assert shared.get_season("2020-10-03") == 2019
+    assert shared.get_season("2020-11-15") == 2020
 
 
 def test_scrape_page(file_info):
@@ -55,20 +57,6 @@ def test_scrape_page(file_info):
 
     assert type(file) == str
     assert len(file) > 0
-
-
-def test_add_dir():
-    """ Test if this function correctly tells if a directory exists on the machine"""
-
-    # Check when it does exist (will always be good for this file)
-    user_dir = os.path.dirname(os.path.realpath(__file__))
-    shared.add_dir(user_dir)
-    assert shared.docs_dir is not None
-
-    # Checks when it doesn't exist
-    user_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "hopefully_this_path_doesnt_exist")
-    shared.add_dir(user_dir)
-    assert shared.docs_dir is False
 
 
 def test_get_file(file_info):
@@ -94,3 +82,17 @@ def test_get_file(file_info):
     shutil.rmtree("docs")
     shutil.rmtree("csvs")
     os.chdir(original_path)
+
+
+def test_add_dir():
+    """ Test if this function correctly tells if a directory exists on the machine"""
+
+    # Check when it does exist (will always be good for this file)
+    user_dir = os.path.dirname(os.path.realpath(__file__))
+    shared.add_dir(user_dir)
+    assert config.DOCS_DIR is not None
+
+    # Checks when it doesn't exist
+    user_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "hopefully_this_path_doesnt_exist")
+    shared.add_dir(user_dir)
+    assert config.DOCS_DIR is False

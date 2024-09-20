@@ -8,19 +8,15 @@ v1.2.6
 
 v1.2.7
 ------
-
   * Added functionality to easier scrape live games
   * Fixed user warnings
 
-
 v1.3
 ----
-
   * Added functionality to scrape NWHL data
 
 v1.31
 -----
-
   * Added functionality to automatically create docs_dir
   * Added folder to store csv files
 
@@ -28,7 +24,6 @@ v1.33
 -----
   * Fixed bug with nhl changing contents of eventTypeId
   * Updated ESPN scraping after they changed the layout of the pages
-
 
 v1.34
 -----
@@ -47,3 +42,20 @@ v1.36
   * Added names to utils.shared.Names
   * Changed errors/warning to print red in the console
 
+v1.37
+-----
+  * Now saves scraped pages in docs_dir as a GZIP
+  * Only print full error summary when the number of games scraped is >= 25
+  * Remove hardcoded exception for Sebastian Aho. Updated process to work without it.
+  * Always rescrape schedule pages
+
+v1.38
+------
+  * Convert tri-codes from new format to old in Html PBP. Mappings stored in utils/tri_code_conversion.json. 
+  * Added verbose option to top-level scrape functions
+  * Replaced default parser for HTML PBP with "html5lib" over "lxml". lxml was having issues with older games.
+  * Reduced chunk size in nhl.json_schedule.chunk_schedule_calls to 30 from 50. Was having some issues during tests. 
+
+v1.39
+------
+  * Changed API endpoints
